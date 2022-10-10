@@ -222,12 +222,12 @@ void SimpleCompute::Execute()
   fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
   fenceCreateInfo.flags = 0;
   VK_CHECK_RESULT(vkCreateFence(m_device, &fenceCreateInfo, NULL, &m_fence));
-  const char *vulkan_s[2] = { "Vulkan", "Vulkan shared memory" };
+  const char *vulkan_s[2] = { "Vulkan single run", "Vulkan shared memory single run" };
   for (int i = 0; i < 2; i++)
   {
     std::cout << vulkan_s[i] << std::endl;
     BuildCommandBufferSimple(m_cmdBufferCompute, m_pipelines[i]);
-    auto start = std::chrono::steady_clock::now();
+    auto start = std::chrono::high_resolution_clock::now();
     // Отправляем буфер команд на выполнение
     VK_CHECK_RESULT(vkQueueSubmit(m_computeQueue, 1, &submitInfo, m_fence));
     //Ждём конца выполнения команд
@@ -237,29 +237,40 @@ void SimpleCompute::Execute()
     m_pCopyHelper->ReadBuffer(m_res, 0, values.data(), sizeof(float) * values.size());
     std::cout << "-> Result:                                    "
       << std::accumulate(std::begin(values), std::end(values), 0.0) / values.size() << std::endl;
-    auto end = std::chrono::steady_clock::now();
+    auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<float> elapsed_vulkan = end_vulkan - start;
     std::chrono::duration<float> elapsed_total  = end - start;
     std::cout << "-> Compute time:                              " << elapsed_vulkan.count() << "s\n";
     std::cout << "-> Compute + Reading buffer + Calc mean time: " << elapsed_total.count() << "s\n";
     vkResetFences(m_device, 1, &m_fence);
   }
-   std::chrono::duration<float> time[2] = {};
-   const int benchmark_n = 100;
-   float accelerate_sum = 0;
-   for (int run = 0; run < benchmark_n; run++)
-   {
-     for (int i = 0; i < 2; i++)
-     {
-       BuildCommandBufferSimple(m_cmdBufferCompute, m_pipelines[i]);
-       auto start = std::chrono::steady_clock::now();
-       VK_CHECK_RESULT(vkQueueSubmit(m_computeQueue, 1, &submitInfo, m_fence));
-       VK_CHECK_RESULT(vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, 100000000000));
-       auto end = std::chrono::steady_clock::now();
-       time[i] = end - start;
-       vkResetFences(m_device, 1, &m_fence);
-     }
-     accelerate_sum += time[1].count() / time[0].count();
-   }
-   std::cout << "-> Shared memory acceleration (mean):         " << accelerate_sum / benchmark_n << std::endl;
+  std::chrono::duration<float> time_sum[2] = {};
+  std::chrono::duration<float> time_min[2] = { std::chrono::duration<float>::max(),
+    std::chrono::duration<float>::max() };
+  std::chrono::duration<float> time_max[2] = { std::chrono::duration<float>::min(),
+    std::chrono::duration<float>::min() };
+  const int benchmark_n = 1000;
+  std::cout << "Vulkan compute many runs\n";
+  for (int run = 0; run < benchmark_n; run++)
+  {
+    for (int i = 0; i < 2; i++)
+    {
+      BuildCommandBufferSimple(m_cmdBufferCompute, m_pipelines[i]);
+      auto start = std::chrono::high_resolution_clock::now();
+      VK_CHECK_RESULT(vkQueueSubmit(m_computeQueue, 1, &submitInfo, m_fence));
+      VK_CHECK_RESULT(vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, 100000000000));
+      auto end = std::chrono::high_resolution_clock::now();
+      std::chrono::duration<float> time = end - start;
+      time_min[i] = std::min(time_min[i], time);
+      time_max[i] = std::max(time_max[i], time);
+      time_sum[i] += time;
+      vkResetFences(m_device, 1, &m_fence);
+    }
+
+  }
+  std::cout << "-> Min time:                       NonShared: " << time_min[0].count() << "s\n";
+  std::cout << "                                      Shared: " << time_min[1].count() << "s\n";
+  std::cout << "-> Max time:                       NonShared: " << time_max[0].count() << "s\n";
+  std::cout << "                                      Shared: " << time_max[1].count() << "s\n";
+  std::cout << "-> Shared memory acceleration (mean):         " << time_sum[0] / time_sum[1] << std::endl;
 }

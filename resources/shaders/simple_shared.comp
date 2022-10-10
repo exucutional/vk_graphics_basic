@@ -16,15 +16,24 @@ layout(std430, binding = 1) buffer Res
     float res[];
 };
 
+shared float[32] buff;
+
 void main() 
 {
     uint idx = gl_GlobalInvocationID.x;
+    uint lidx = gl_LocalInvocationID.x;
     uint window = 7;
     uint offset = window/2;
     float sum = 0.;
+    buff[lidx] = A[idx];
+    barrier();
     for (uint i = 0; i < window; i++)
     {
-        sum += A[idx+i-offset];
+        uint index = lidx+i-offset;
+        if (index >= 0 && index < 32)
+            sum += buff[index];
+        else
+            sum += A[idx+i-offset];
     }
-    res[idx] = A[idx]-sum/window;
+    res[idx] = buff[lidx]-sum/window;
 }

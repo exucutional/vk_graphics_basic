@@ -76,10 +76,10 @@ private:
   VkDescriptorSet       m_sumDS; 
   VkDescriptorSetLayout m_sumDSLayout = nullptr;
   
-  VkPipeline m_pipeline;
+  VkPipeline m_pipelines[2];
   VkPipelineLayout m_layout;
 
-  VkBuffer m_A, m_B, m_sum;
+  VkBuffer m_A, m_res;
  
   void CreateInstance();
   void CreateDevice(uint32_t a_deviceId);

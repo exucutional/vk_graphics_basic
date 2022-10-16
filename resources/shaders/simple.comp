@@ -19,12 +19,25 @@ layout(std430, binding = 1) buffer Res
 void main() 
 {
     uint idx = gl_GlobalInvocationID.x;
-    uint window = 7;
-    uint offset = window/2;
-    float sum = 0.;
-    for (uint i = 0; i < window; i++)
+    if (idx < PushConstant.len)
     {
-        sum += A[idx+i-offset];
+        uint window = 7;
+        uint offset = window/2;
+        float sum = 0.;
+        uint begin = 0;
+        uint end = window;
+        if (idx < offset)
+        {
+            begin = offset-idx;
+        }
+        if (idx > PushConstant.len-1-offset)
+        {
+            end -= idx+offset-PushConstant.len-1;
+        }
+        for (uint i = begin; i < end; i++)
+        {
+            sum += A[idx+i-offset];
+        }
+        res[idx] = A[idx]-sum/window;
     }
-    res[idx] = A[idx]-sum/window;
 }

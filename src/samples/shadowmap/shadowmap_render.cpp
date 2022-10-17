@@ -266,6 +266,13 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     vkCmdSetViewport(a_cmdBuff, 0, 1, &vp);
     vkCmdSetScissor(a_cmdBuff, 0, 1, &scis);
 
+    auto simpleShadowInfo = etna::get_shader_program("simple_shadow");
+    auto set = etna::create_descriptor_set(simpleShadowInfo.getDescriptorLayoutId(0),{
+        etna::Binding{ 0, vk::DescriptorBufferInfo{ constants.get(), 0, VK_WHOLE_SIZE } }
+    });
+
+    VkDescriptorSet vkSet = set.getVkSet();
+
     vk::RenderingAttachmentInfo shadowMapAttInfo {
       .imageView = shadowMap.getView({}),
       .imageLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal,
@@ -283,6 +290,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     {
       vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline.getVkPipeline());
+      vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
       DrawSceneCmd(a_cmdBuff, m_lightMatrix);
     }
     vkCmdEndRendering(a_cmdBuff);

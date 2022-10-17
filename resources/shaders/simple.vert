@@ -5,7 +5,6 @@
 #include "unpack_attributes.h"
 #include "common.h"
 
-
 layout(location = 0) in vec4 vPosNorm;
 layout(location = 1) in vec4 vTexCoordAndTang;
 
@@ -25,12 +24,10 @@ layout (location = 0 ) out VS_OUT
 
 } vOut;
 
-
 layout(binding = 0, set = 0) uniform AppData
 {
     UniformParams Params;
 };
-
 
 mat4 rotateY(float angle)
 {
@@ -54,26 +51,40 @@ mat4 translate(vec3 t)
     ));
 }
 
-mat4 teapotModel = transpose(mat4(
+const mat4 teapotModel = mat4(
     0.999889,  0.0, -0.0149171, 0.0,
     0.0,       1.0,  0,        -1.27,
     0.0149171, 0.0,  0.999889,  0.0,
     0.0,       0.0,  0.0,       1.0
-));
+);
 
-mat4 sphereModel = transpose(mat4(
+const mat4 sphereModel = mat4(
     1.0, 0.0, 0.0, 0.0,
     0.0, 1.0, 0.0, 0.75,
     0.0, 0.0, 1.0, 0.0,
     0.0, 0.0, 0.0, 1.0
-));
+);
 
-mat4 LModel = transpose(mat4(
+const mat4 LModel = mat4(
     0.824126, 0.0, 0.566406, -0.0100791,
     0.0,      1.0, 0.0,      -1.27,
    -0.566406, 0.0, 0.824126,  0.872508,
     0.0,      0.0, 0.0,       1.0
-));
+);
+
+const mat4 cylModel = mat4(
+    1.0, 0.0, 0.0, -0.826185,
+    0.0, 1.0, 0.0, -1.27,
+    0.0, 0.0, 1.0,  0.809034,
+    0.0, 0.0, 0.0,  1.0
+);
+
+const mat4 boxModel = mat4(
+    1.0, 0.0, 0.0,  0.985493,
+    0.0, 1.0, 0.0, -1.27,
+    0.0, 0.0, 1.0,  0.512028,
+    0.0, 0.0, 0.0,  1.0
+);
 
 out gl_PerVertex { vec4 gl_Position; };
 void main(void)
@@ -81,18 +92,29 @@ void main(void)
     const vec4 wNorm = vec4(DecodeNormal(floatBitsToInt(vPosNorm.w)),         0.0f);
     const vec4 wTang = vec4(DecodeNormal(floatBitsToInt(vTexCoordAndTang.z)), 0.0f);
     mat4 mModel = params.mModel;
-    if (mModel == teapotModel)
+    mat4 mModelT = transpose(mModel);
+    if (mModelT == teapotModel)
     {
         mModel *= rotateY(Params.time);
     }
-    if (mModel == sphereModel)
+    if (mModelT == sphereModel)
     {
         vec3 t = vec3(0.0, 0.0, 1.0);
         mModel *= translate(t*(1.0+sin(Params.time)));
     }
-    if (mModel == LModel)
+    if (mModelT == LModel)
     {
         mModel *= rotateY(0.5*(sin(Params.time)-1.0));
+    }
+    if (mModelT == cylModel)
+    {
+        vec3 t = vec3(0.0, 1.0, 0.0);
+        mModel *= translate(t*0.25*(1.0+sin(Params.time)));
+    }
+    if (mModelT == boxModel)
+    {
+        vec3 t = vec3(0.0, 0.0, 1.0);
+        mModel *= translate(t*0.25*(1.0+sin(Params.time)));
     }
     vOut.wPos     = (mModel * vec4(vPosNorm.xyz, 1.0f)).xyz;
     vOut.wNorm    = normalize(mat3(transpose(inverse(mModel))) * wNorm.xyz);

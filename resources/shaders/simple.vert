@@ -3,7 +3,7 @@
 #extension GL_GOOGLE_include_directive : require
 
 #include "unpack_attributes.h"
-
+#include "common.h"
 
 layout(location = 0) in vec4 vPosNorm;
 layout(location = 1) in vec4 vTexCoordAndTang;
@@ -23,6 +23,11 @@ layout (location = 0 ) out VS_OUT
     vec2 texCoord;
 
 } vOut;
+
+layout(binding = 0, set = 0) uniform AppData
+{
+  UniformParams Params;
+};
 
 out gl_PerVertex { vec4 gl_Position; };
 void main(void)

@@ -1,30 +1,63 @@
 #version 430
+#extension GL_GOOGLE_include_directive : require
+
+#include "common.h"
 
 layout( local_size_x = 32 ) in;
 
 layout( push_constant ) uniform params {
-  uint len;
+  Plane far;
+  Plane near;
+  Plane left;
+  Plane right;
+  Plane top;
+  Plane bottom;
+  vec4 bboxmin;
+  vec4 bboxmax;
+  uint instanceCount;
 } PushConstant;
 
-layout(std430, binding = 0) buffer a 
+layout(std430, binding = 0) readonly buffer InstanceDataMatrices
 {
-    float A[];
+    mat4 InstanceMatrices[];
 };
 
-layout(std430, binding = 1) buffer b
+layout(std430, binding = 1) buffer InstanceVisibleDataIndexes
 {
-    float B[];
+    uint InstanceIndexes[];
 };
 
-layout(std430, binding = 2) buffer Sum
+layout(std430, binding = 2) buffer InstanceVisibleDataCount
 {
-    float sum[];
+    uint InstanceVisibleCount;
 };
 
-void main() 
+bool isVisiblePlane(Plane plane, vec4 bboxmin, vec4 bboxmax)
+{
+    float w = -dot(plane.pos, plane.norm);
+    vec4 bboxc = (bboxmax+bboxmin)/2.0f;
+    vec4 extent = bboxmax-bboxc;
+    float r = extent.x*abs(plane.norm.x)+extent.y*abs(plane.norm.y)+extent.z*abs(plane.norm.z);
+    return dot(plane.norm, bboxc)+w <= r;
+}
+
+void main()  
 {
     uint idx = gl_GlobalInvocationID.x;
-    if (idx < PushConstant.len) {
-        sum[idx] = A[idx] + B[idx];
+    if (idx < PushConstant.instanceCount)
+    {
+        mat4 instanceMatrix = InstanceMatrices[idx];
+        vec4 bboxmin = instanceMatrix*PushConstant.bboxmin;
+        vec4 bboxmax = instanceMatrix*PushConstant.bboxmax;
+        if (//isVisiblePlane(PushConstant.far, bboxmin, bboxmax)
+            //&& isVisiblePlane(PushConstant.near, bboxmin, bboxmax)
+            isVisiblePlane(PushConstant.left, bboxmin, bboxmax)
+            && isVisiblePlane(PushConstant.right, bboxmin, bboxmax)
+            && isVisiblePlane(PushConstant.top, bboxmin, bboxmax)
+            && isVisiblePlane(PushConstant.bottom, bboxmin, bboxmax))
+        {
+            uint index = atomicAdd(InstanceVisibleCount, 1);
+            InstanceIndexes[index] = idx;
+        }
     }
 }

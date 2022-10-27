@@ -23,6 +23,22 @@ void SimpleShadowmapRender::UpdateView()
   
   m_worldViewProj = mWorldViewProj;
   
+  ///// Camera frustrum
+  //
+  auto forward     = LiteMath::to_float4(m_cam.forward(), 0);
+  auto forwardDist = forward * m_cam.tdist;
+  auto right       = LiteMath::to_float4(m_cam.right(), 0);
+  auto halfPlaneV  = m_cam.tdist * tan(m_cam.fov * LiteMath::DEG_TO_RAD);
+  auto halfPlaneH  = halfPlaneV * aspect;
+  auto campos      = LiteMath::to_float4(m_cam.pos, 1);
+  auto camup       = LiteMath::to_float4(m_cam.up, 0);
+  pushConstCompute.farPlane    = { campos + forwardDist, forward };
+  pushConstCompute.nearPlane   = { campos + forward * 0.001f, forward * -1 };
+  pushConstCompute.leftPlane   = { campos, LiteMath::cross3(camup, forwardDist - right * halfPlaneH) };
+  pushConstCompute.rightPlane  = { campos, LiteMath::cross3(forwardDist + right * halfPlaneH, camup) };
+  pushConstCompute.topPlane    = { campos, LiteMath::cross(right, forwardDist + camup * halfPlaneV) };
+  pushConstCompute.bottomPlane = { campos, LiteMath::cross(forwardDist - camup * halfPlaneV, right) };
+  //std::cout << "Visible scene instances   : " << *(uint*)m_instanceVisibleCountMappedMem << std::endl;
   ///// calc light matrix
   //
   if(m_light.usePerspectiveM)

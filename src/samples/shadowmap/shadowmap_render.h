@@ -47,6 +47,10 @@ private:
   etna::Image shadowMap;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
+  etna::Buffer instanceMatrices;
+  etna::Buffer instanceVisibleIndexes;
+  etna::Buffer indirectBuffer;
+  etna::Buffer instanceVisibleCount;
 
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
 
@@ -67,14 +71,33 @@ private:
     float4x4 model;
   } pushConst2M;
 
+  struct
+  {
+    Plane farPlane;
+    Plane nearPlane;
+    Plane leftPlane;
+    Plane rightPlane;
+    Plane topPlane;
+    Plane bottomPlane;
+    float4 bboxmin;
+    float4 bboxmax;
+    uint instanceCount = 10000;
+  } pushConstCompute;
+
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    
 
   UniformParams m_uniforms {};
   void* m_uboMappedMem = nullptr;
+  void* m_indirectMappedMem = nullptr;
+  void* m_instanceMatricesMappedMem = nullptr;
+  void* m_instanceVisibleCountMappedMem = nullptr;
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
+  etna::ComputePipeline m_computePipeline {};
+  //VkPipeline m_computePipeline;
+  //VkPipelineLayout m_computeLayout;
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -96,6 +119,9 @@ private:
   std::shared_ptr<vk_utils::IQuad>               m_pFSQuad;
   VkDescriptorSet       m_quadDS; 
   VkDescriptorSetLayout m_quadDSLayout = nullptr;
+
+  VkDescriptorSet       m_computeDS;
+  VkDescriptorSetLayout m_computeDSLayout;
 
   struct InputControlMouseEtc
   {
@@ -143,6 +169,7 @@ private:
 
 
   void SetupDeviceExtensions();
+  void SetupDeviceFeatures();
 
   void AllocateResources();
   void PreparePipelines();

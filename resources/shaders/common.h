@@ -51,4 +51,15 @@ struct UniformParams
   shader_bool  animateLightColor;
 };
 
+struct InstanceParams
+{
+  shader_mat4 instanceMatrix;
+};
+
+struct Plane
+{
+  shader_vec4 pos;
+  shader_vec4 norm;
+};
+
 #endif // VK_GRAPHICS_BASIC_COMMON_H

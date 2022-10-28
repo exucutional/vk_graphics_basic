@@ -143,6 +143,7 @@ private:
 
 
   void SetupDeviceExtensions();
+  void SetupDeviceFeatures();
 
   void AllocateResources();
   void PreparePipelines();

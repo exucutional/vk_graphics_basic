@@ -45,6 +45,7 @@ private:
   etna::GlobalContext* m_context;
   etna::Image mainViewDepth;
   etna::Image shadowMap;
+  etna::Image gNormalMap;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
 
@@ -67,6 +68,13 @@ private:
     float4x4 model;
   } pushConst2M;
 
+  struct
+  {
+    float4 scaleAndOffset;
+    float4x4 projInverse;
+    float4x4 viewInverse;
+  } pushConstDeferred;
+
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    
 
@@ -75,6 +83,7 @@ private:
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
+  etna::GraphicsPipeline m_deferredPipelne {};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -85,6 +94,8 @@ private:
   uint32_t m_width  = 1024u;
   uint32_t m_height = 1024u;
   uint32_t m_framesInFlight = 2u;
+  float m_farClipDist  = 1000.0f;
+  float m_nearClipDist = 0.1f;
   bool m_vsync = false;
 
   vk::PhysicalDeviceFeatures m_enabledDeviceFeatures = {};
@@ -93,9 +104,12 @@ private:
 
   std::shared_ptr<SceneManager>     m_pScnMgr;
   
-  std::shared_ptr<vk_utils::IQuad>               m_pFSQuad;
-  VkDescriptorSet       m_quadDS; 
-  VkDescriptorSetLayout m_quadDSLayout = nullptr;
+  std::shared_ptr<vk_utils::IQuad>  m_pFSQuadLightDepth;
+  std::shared_ptr<vk_utils::IQuad>  m_pFSQuadGNormal;
+  VkDescriptorSet                   m_quadDSLightDepth;
+  VkDescriptorSet                   m_quadDSGNormal; 
+  VkDescriptorSetLayout             m_quadDSLayoutLightDepth = nullptr;
+  VkDescriptorSetLayout             m_quadDSLayoutGNormal = nullptr;
 
   struct InputControlMouseEtc
   {

@@ -17,12 +17,13 @@ void SimpleShadowmapRender::UpdateView()
   //
   const float aspect = float(m_width) / float(m_height);
   auto mProjFix = OpenglToVulkanProjectionMatrixFix();
-  auto mProj = projectionMatrix(m_cam.fov, aspect, 0.1f, 1000.0f);
+  auto mProj = projectionMatrix(m_cam.fov, aspect, m_nearClipDist, m_farClipDist);
   auto mLookAt = LiteMath::lookAt(m_cam.pos, m_cam.lookAt, m_cam.up);
-  auto mWorldViewProj = mProjFix * mProj * mLookAt;
+  auto mWorldViewProj = mProj * mLookAt;
   
   m_worldViewProj = mWorldViewProj;
-  
+  pushConstDeferred.projInverse = LiteMath::inverse4x4(mProjFix * mProj);
+  pushConstDeferred.viewInverse = LiteMath::inverse4x4(mLookAt);
   ///// calc light matrix
   //
   if(m_light.usePerspectiveM)

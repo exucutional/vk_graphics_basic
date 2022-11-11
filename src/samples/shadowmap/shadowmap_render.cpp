@@ -207,11 +207,11 @@ void SimpleShadowmapRender::SetupSimplePipeline()
   m_pBindings = std::make_shared<vk_utils::DescriptorMaker>(m_context->getDevice(), dtypes, 2);
   
   m_pBindings->BindBegin(VK_SHADER_STAGE_FRAGMENT_BIT);
-  m_pBindings->BindImage(0, shadowMap.getView({ .aspectMask = vk::ImageAspectFlagBits::eDepth }), defaultSampler.get(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+  m_pBindings->BindImage(0, shadowMap.getView({}), defaultSampler.get(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
   m_pBindings->BindEnd(&m_quadDSLightDepth, &m_quadDSLayoutLightDepth);
 
   m_pBindings->BindBegin(VK_SHADER_STAGE_FRAGMENT_BIT);
-  m_pBindings->BindImage(0, gNormalMap.getView({ .aspectMask = vk::ImageAspectFlagBits::eColor }), defaultSampler.get(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+  m_pBindings->BindImage(0, gNormalMap.getView({}), defaultSampler.get(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
   m_pBindings->BindEnd(&m_quadDSGNormal, &m_quadDSLayoutGNormal);
 
   //m_pBindings->BindBegin(VK_SHADER_STAGE_COMPUTE_BIT);
@@ -397,7 +397,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   //// draw scene to shadowmap
   //
   {
-    etna::RenderTargetState renderTargets(a_cmdBuff, { 2048, 2048 }, {}, shadowMap.getView({ .aspectMask = vk::ImageAspectFlagBits::eDepth }));
+    etna::RenderTargetState renderTargets(a_cmdBuff, { 2048, 2048 }, {}, shadowMap.getView({}));
     {
       auto simpleShadowInfo = etna::get_shader_program("simple_shadow");
       auto set = etna::create_descriptor_set(simpleShadowInfo.getDescriptorLayoutId(0), {
@@ -416,8 +416,8 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   //
   {
     etna::RenderTargetState renderTargets(a_cmdBuff, { m_width, m_height },
-        { gNormalMap.getView({ .aspectMask = vk::ImageAspectFlagBits::eColor }) },
-        mainViewDepth.getView({ .aspectMask = vk::ImageAspectFlagBits::eDepth }));
+        { gNormalMap.getView({}) },
+        mainViewDepth.getView({}));
     {
       auto simpleDeferredInfo = etna::get_shader_program("simple_deferred");
       auto set = etna::create_descriptor_set(simpleDeferredInfo.getDescriptorLayoutId(0), {
@@ -585,9 +585,9 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     auto set = etna::create_descriptor_set(simpleMaterialInfo.getDescriptorLayoutId(0), {
       etna::Binding { 0, vk::DescriptorBufferInfo { constants.get(), 0, VK_WHOLE_SIZE } },
-      etna::Binding { 1, vk::DescriptorImageInfo { defaultSampler.get(), shadowMap.getView({ .aspectMask = vk::ImageAspectFlagBits::eDepth }), vk::ImageLayout::eShaderReadOnlyOptimal } },
-      etna::Binding { 2, vk::DescriptorImageInfo { defaultSampler.get(), mainViewDepth.getView({ .aspectMask = vk::ImageAspectFlagBits::eDepth }), vk::ImageLayout::eShaderReadOnlyOptimal } },
-      etna::Binding { 3, vk::DescriptorImageInfo { defaultSampler.get(), gNormalMap.getView({ .aspectMask = vk::ImageAspectFlagBits::eColor }), vk::ImageLayout::eShaderReadOnlyOptimal } },
+      etna::Binding { 1, vk::DescriptorImageInfo { defaultSampler.get(), shadowMap.getView({}), vk::ImageLayout::eShaderReadOnlyOptimal } },
+      etna::Binding { 2, vk::DescriptorImageInfo { defaultSampler.get(), mainViewDepth.getView({}), vk::ImageLayout::eShaderReadOnlyOptimal } },
+      etna::Binding { 3, vk::DescriptorImageInfo { defaultSampler.get(), gNormalMap.getView({}), vk::ImageLayout::eShaderReadOnlyOptimal } },
       etna::Binding { 4, vk::DescriptorBufferInfo { lightPos.get(), 0, VK_WHOLE_SIZE } },
       etna::Binding { 5, vk::DescriptorBufferInfo { lightColor.get(), 0, VK_WHOLE_SIZE } },
       etna::Binding { 6, vk::DescriptorBufferInfo { tileLightIndexes.get(), 0, VK_WHOLE_SIZE } },

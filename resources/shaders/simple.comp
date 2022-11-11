@@ -1,30 +1,59 @@
 #version 430
+#extension GL_GOOGLE_include_directive : require
 
-layout( local_size_x = 32 ) in;
+#include "common.h"
 
-layout( push_constant ) uniform params {
-  uint len;
+layout(local_size_x = 32) in;
+
+layout(push_constant) uniform params
+{
+    uint  TileCount;
+    uint  LightCount;
+    float LightRadius;
 } PushConstant;
 
-layout(std430, binding = 0) buffer a 
+layout(std430, binding = 0) readonly buffer LightsPosB
 {
-    float A[];
+    vec3 LightPos[];
 };
 
-layout(std430, binding = 1) buffer b
+layout(std430, binding = 1) buffer TileLightIndexesB
 {
-    float B[];
+    uint TileLightIndexes[];    //2d [TileCount][LightCount]
 };
 
-layout(std430, binding = 2) buffer Sum
+layout(std430, binding = 2) buffer TileLightCountB
 {
-    float sum[];
+    uint TileLightCount[];
 };
+
+layout(std430, binding = 3) readonly buffer TileFrustrumsB
+{
+    Frustrum TileFrustrums[];
+};
+
+bool is_light_in_frustrum(Frustrum frustrum, vec4 lightPos)
+{
+    vec4 diff = lightPos-frustrum.top.pos;
+    return dot(frustrum.top.norm,   diff) <= PushConstant.LightRadius*length(frustrum.top.norm)
+        && dot(frustrum.bot.norm,   diff) <= PushConstant.LightRadius*length(frustrum.bot.norm)
+        && dot(frustrum.left.norm,  diff) <= PushConstant.LightRadius*length(frustrum.left.norm)
+        && dot(frustrum.right.norm, diff) <= PushConstant.LightRadius*length(frustrum.right.norm);
+}
 
 void main() 
 {
     uint idx = gl_GlobalInvocationID.x;
-    if (idx < PushConstant.len) {
-        sum[idx] = A[idx] + B[idx];
+    vec3 lightPos = LightPos[idx];
+    if (idx < PushConstant.LightCount)
+    {
+        for (uint i = 0; i < PushConstant.TileCount; i++)
+        {
+            if (is_light_in_frustrum(TileFrustrums[i], vec4(lightPos, 1.0)))
+            {
+                uint index = atomicAdd(TileLightCount[i], 1);
+                TileLightIndexes[i*PushConstant.LightCount+index] = idx;
+            }
+        }
     }
 }

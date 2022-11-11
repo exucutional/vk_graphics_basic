@@ -51,4 +51,18 @@ struct UniformParams
   shader_bool  animateLightColor;
 };
 
+struct Plane
+{
+  shader_vec4 pos;
+  shader_vec4 norm;
+};
+
+struct Frustrum
+{
+  Plane top;
+  Plane bot;
+  Plane left;
+  Plane right;
+};
+
 #endif // VK_GRAPHICS_BASIC_COMMON_H

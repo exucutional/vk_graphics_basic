@@ -48,6 +48,11 @@ private:
   etna::Image gNormalMap;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
+  etna::Buffer lightPos;
+  etna::Buffer lightColor;
+  etna::Buffer tileLightIndexes;
+  etna::Buffer tileLightCount;
+  etna::Buffer tileFrustrums;
 
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
 
@@ -73,17 +78,31 @@ private:
     float4 scaleAndOffset;
     float4x4 projInverse;
     float4x4 viewInverse;
+    uint tileDim      = m_tileDim;
+    uint lightCount   = m_lightCount;
+    float lightRadius = 0.25f;
   } pushConstDeferred;
+
+  struct
+  {
+    uint tileCount    = m_tileDim * m_tileDim;
+    uint lightCount   = m_lightCount;
+    float lightRadius = 0.25f;
+  } pushConstTileLight;
 
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    
 
   UniformParams m_uniforms {};
-  void* m_uboMappedMem = nullptr;
+  void* m_uboMappedMem        = nullptr;
+  void* m_lightPosMappedMem   = nullptr;
+  void *m_lightColorMappedMem = nullptr;
+  void* m_frustrumsMappedMem  = nullptr;
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
   etna::GraphicsPipeline m_deferredPipelne {};
+  etna::ComputePipeline  m_tileLightPipeline {};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -94,6 +113,9 @@ private:
   uint32_t m_width  = 1024u;
   uint32_t m_height = 1024u;
   uint32_t m_framesInFlight = 2u;
+  static const uint32_t m_tileDim    = 16;
+  static const uint32_t m_lightCount = 1024;
+  float m_lightRadius  = 0.25f;
   float m_farClipDist  = 1000.0f;
   float m_nearClipDist = 0.1f;
   bool m_vsync = false;
@@ -101,15 +123,18 @@ private:
   vk::PhysicalDeviceFeatures m_enabledDeviceFeatures = {};
   std::vector<const char*> m_deviceExtensions;
   std::vector<const char*> m_instanceExtensions;
+  Frustrum m_tileFrustrums[m_tileDim][m_tileDim];
 
   std::shared_ptr<SceneManager>     m_pScnMgr;
   
   std::shared_ptr<vk_utils::IQuad>  m_pFSQuadLightDepth;
   std::shared_ptr<vk_utils::IQuad>  m_pFSQuadGNormal;
   VkDescriptorSet                   m_quadDSLightDepth;
-  VkDescriptorSet                   m_quadDSGNormal; 
+  VkDescriptorSet                   m_quadDSGNormal;
+  VkDescriptorSet                   m_tileLightDS;
   VkDescriptorSetLayout             m_quadDSLayoutLightDepth = nullptr;
-  VkDescriptorSetLayout             m_quadDSLayoutGNormal = nullptr;
+  VkDescriptorSetLayout             m_quadDSLayoutGNormal    = nullptr;
+  VkDescriptorSetLayout             m_tileLightDSLayout      = nullptr;
 
   struct InputControlMouseEtc
   {
@@ -167,6 +192,5 @@ private:
   void InitPresentStuff();
   void ResetPresentStuff();
 };
-
 
 #endif //CHIMERA_SIMPLE_RENDER_H

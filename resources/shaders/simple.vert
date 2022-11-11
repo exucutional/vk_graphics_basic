@@ -21,12 +21,11 @@ layout (location = 0 ) out VS_OUT
     vec3 wNorm;
     vec3 wTangent;
     vec2 texCoord;
-
 } vOut;
 
 layout(binding = 0, set = 0) uniform AppData
 {
-  UniformParams Params;
+    UniformParams Params;
 };
 
 out gl_PerVertex { vec4 gl_Position; };

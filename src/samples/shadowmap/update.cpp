@@ -24,6 +24,30 @@ void SimpleShadowmapRender::UpdateView()
   m_worldViewProj = mWorldViewProj;
   pushConstDeferred.projInverse = LiteMath::inverse4x4(mProjFix * mProj);
   pushConstDeferred.viewInverse = LiteMath::inverse4x4(mLookAt);
+  auto forward                  = LiteMath::to_float4(m_cam.forward(), 0.0f);
+  auto forwardDist              = forward * m_cam.tdist;
+  auto right                    = LiteMath::to_float4(m_cam.right(), 0);
+  auto halfPlaneV               = m_cam.tdist * tan(0.5f*m_cam.fov * LiteMath::DEG_TO_RAD);
+  auto tileV                    = 2 * halfPlaneV / m_tileDim;
+  auto halfPlaneH               = halfPlaneV * aspect;
+  auto tileH                    = 2 * halfPlaneH / m_tileDim;
+  auto camPos                   = LiteMath::to_float4(m_cam.pos, 1.0f);
+  auto camUp                    = LiteMath::to_float4(m_cam.up, 0.0f);
+  for (int i = 0; i < m_tileDim; i++)
+  {
+    for (int j = 0; j < m_tileDim; j++)
+    {
+      m_tileFrustrums[i][j].top.pos    = camPos;
+      m_tileFrustrums[i][j].top.norm   = LiteMath::cross3(right, forwardDist + camUp * (halfPlaneV - i * tileV));
+      m_tileFrustrums[i][j].bot.pos    = camPos;
+      m_tileFrustrums[i][j].bot.norm   = LiteMath::cross3(forwardDist + camUp * (halfPlaneV - (i + 1) * tileV), right);
+      m_tileFrustrums[i][j].left.pos   = camPos;
+      m_tileFrustrums[i][j].left.norm  = LiteMath::cross3(camUp, forwardDist - right * (halfPlaneH - j * tileH));
+      m_tileFrustrums[i][j].right.pos  = camPos;
+      m_tileFrustrums[i][j].right.norm = LiteMath::cross3(forwardDist - right * (halfPlaneH - (j + 1) * tileH), camUp);
+    }
+  }
+  memcpy(m_frustrumsMappedMem, &m_tileFrustrums, sizeof(m_tileFrustrums));
   ///// calc light matrix
   //
   if(m_light.usePerspectiveM)

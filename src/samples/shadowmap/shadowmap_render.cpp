@@ -4,6 +4,7 @@
 #include <vk_pipeline.h>
 #include <vk_buffers.h>
 #include <iostream>
+#include <random>
 
 #include <etna/GlobalContext.hpp>
 #include <etna/Etna.hpp>
@@ -18,7 +19,7 @@ void SimpleShadowmapRender::AllocateResources()
   mainViewDepth = m_context->createImage(etna::Image::CreateInfo
   {
     .extent = vk::Extent3D{m_width, m_height, 1},
-    .format = vk::Format::eD32Sfloat,
+    .format = vk::Format::eD16Unorm,
     .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled
   });
 
@@ -44,7 +45,45 @@ void SimpleShadowmapRender::AllocateResources()
     .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
   });
 
-  m_uboMappedMem = constants.map();
+  lightPos = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size = sizeof(float3)*m_lightCount,
+    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
+  });
+
+  lightColor = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size = sizeof(float4)*m_lightCount,
+    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
+  });
+
+  tileLightIndexes = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size = sizeof(uint) * m_tileDim * m_tileDim * m_lightCount,
+    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
+  });
+
+  tileLightCount = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size = sizeof(uint) * m_tileDim * m_tileDim,
+    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
+    .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
+  });
+
+  tileFrustrums = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size = sizeof(m_tileFrustrums),
+    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
+  });
+
+  m_uboMappedMem        = constants.map();
+  m_lightPosMappedMem   = lightPos.map();
+  m_lightColorMappedMem = lightColor.map();
+  m_frustrumsMappedMem  = tileFrustrums.map();
 }
 
 void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matrices)
@@ -61,6 +100,24 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   m_cam.up  = float3(loadedCam.up);
   m_cam.lookAt = float3(loadedCam.lookAt);
   m_cam.tdist  = loadedCam.farPlane;
+  pushConstDeferred.lightRadius  = m_lightRadius;
+  pushConstTileLight.lightRadius = m_lightRadius;
+  auto sceneBox = m_pScnMgr->GetSceneBbox();
+  std::vector<float3> randomLightPos(m_lightCount);
+  std::vector<float4> randomLightColor(m_lightCount);
+  std::random_device rdev;
+  std::mt19937 gen(rdev());
+  std::uniform_real_distribution<float> rnumx(sceneBox.boxMin.x, sceneBox.boxMax.x);
+  std::uniform_real_distribution<float> rnumy(sceneBox.boxMin.y, sceneBox.boxMax.y);
+  std::uniform_real_distribution<float> rnumz(sceneBox.boxMin.z, sceneBox.boxMax.z);
+  std::uniform_real_distribution<float> rcolor(0.0f, 1.0f);
+  for (int i = 0; i < (int)m_lightCount; i++)
+  {
+    randomLightPos[i]   = { rnumx(gen), rnumy(gen), rnumz(gen) };
+    randomLightColor[i] = { rcolor(gen), rcolor(gen), rcolor(gen), 1.0f };
+  }
+  memcpy(m_lightPosMappedMem, randomLightPos.data(), sizeof(float3) * m_lightCount);
+  memcpy(m_lightColorMappedMem, randomLightColor.data(), sizeof(float4) * m_lightCount);
 }
 
 void SimpleShadowmapRender::DeallocateResources()
@@ -69,7 +126,12 @@ void SimpleShadowmapRender::DeallocateResources()
   shadowMap.reset();
   gNormalMap.reset();
 
-  constants = etna::Buffer();
+  constants        = etna::Buffer();
+  lightPos         = etna::Buffer();
+  lightColor       = etna::Buffer();
+  tileLightIndexes = etna::Buffer();
+  tileFrustrums    = etna::Buffer();
+  tileLightCount   = etna::Buffer();
 }
 
 
@@ -132,6 +194,7 @@ void SimpleShadowmapRender::loadShaders()
   etna::create_program("simple_shadow", { VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv" });
   etna::create_program("simple_deferred",
     { VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_deferred.frag.spv" });
+  etna::create_program("simple_compute", { VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.comp.spv" });
 }
 
 void SimpleShadowmapRender::SetupSimplePipeline()
@@ -150,6 +213,13 @@ void SimpleShadowmapRender::SetupSimplePipeline()
   m_pBindings->BindBegin(VK_SHADER_STAGE_FRAGMENT_BIT);
   m_pBindings->BindImage(0, gNormalMap.getView({ .aspectMask = vk::ImageAspectFlagBits::eColor }), defaultSampler.get(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
   m_pBindings->BindEnd(&m_quadDSGNormal, &m_quadDSLayoutGNormal);
+
+  //m_pBindings->BindBegin(VK_SHADER_STAGE_COMPUTE_BIT);
+  //m_pBindings->BindBuffer(0, lightPos.get());
+  //m_pBindings->BindBuffer(1, tileLightIndexes.get());
+  //m_pBindings->BindBuffer(2, tileLightCount.get());
+  //m_pBindings->BindBuffer(3, tileFrustrums.get());
+  //m_pBindings->BindEnd(&m_tileLightDS, &m_tileLightDSLayout);
 
   etna::VertexShaderInputDescription sceneVertexInputDesc
     {
@@ -174,7 +244,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
       .fragmentShaderOutput =
         {
           .colorAttachmentFormats = {static_cast<vk::Format>(m_swapchain.GetFormat())},
-          .depthAttachmentFormat = vk::Format::eD32Sfloat
+          .depthAttachmentFormat = vk::Format::eD16Unorm
         }
     });
   m_shadowPipeline = pipelineManager.createGraphicsPipeline("simple_shadow",
@@ -191,12 +261,14 @@ void SimpleShadowmapRender::SetupSimplePipeline()
       .fragmentShaderOutput =
         {
           .colorAttachmentFormats = { vk::Format::eR32G32B32A32Sfloat },
-          .depthAttachmentFormat = vk::Format::eD32Sfloat
+          .depthAttachmentFormat = vk::Format::eD16Unorm
         }
     });
+  m_tileLightPipeline = pipelineManager.createComputePipeline("simple_compute", {});
   print_prog_info("simple_material");
   print_prog_info("simple_shadow");
   print_prog_info("simple_deferred");
+  print_prog_info("simple_compute");
 }
 
 void SimpleShadowmapRender::DestroyPipelines()
@@ -360,6 +432,26 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     }
   }
 
+  //// Compute tile lights
+  //
+  {
+    auto simpleComputeInfo = etna::get_shader_program("simple_compute");
+    auto set = etna::create_descriptor_set(simpleComputeInfo.getDescriptorLayoutId(0), {
+      etna::Binding{ 0, vk::DescriptorBufferInfo{ lightPos.get(),         0, VK_WHOLE_SIZE } },
+      etna::Binding{ 1, vk::DescriptorBufferInfo{ tileLightIndexes.get(), 0, VK_WHOLE_SIZE } },
+      etna::Binding{ 2, vk::DescriptorBufferInfo{ tileLightCount.get(),   0, VK_WHOLE_SIZE } },
+      etna::Binding{ 3, vk::DescriptorBufferInfo{ tileFrustrums.get(),    0, VK_WHOLE_SIZE } }
+    });
+
+    VkDescriptorSet vkSet = set.getVkSet();
+
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_tileLightPipeline.getVkPipeline());
+    vkCmdFillBuffer(a_cmdBuff, tileLightCount.get(), 0, VK_WHOLE_SIZE, 0);
+    vkCmdPushConstants(a_cmdBuff, simpleComputeInfo.getPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushConstTileLight), &pushConstTileLight);
+    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, simpleComputeInfo.getPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+    vkCmdDispatch(a_cmdBuff, pushConstTileLight.lightCount / 32 + 1, 1, 1);
+  }
+
   {
     std::array barriers
       {
@@ -451,10 +543,35 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
             }
         },
       };
+    std::array bufferBarriers
+    {
+      VkBufferMemoryBarrier2
+      {
+        .sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+        .srcStageMask  = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT,
+        .dstStageMask  = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+        .dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT,
+        .buffer        = tileLightCount.get(),
+        .size          = VK_WHOLE_SIZE
+      },
+      VkBufferMemoryBarrier2
+      {
+        .sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+        .srcStageMask  = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT,
+        .dstStageMask  = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+        .dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT,
+        .buffer        = tileLightIndexes.get(),
+        .size          = VK_WHOLE_SIZE
+      }
+    };
     VkDependencyInfo depInfo
       {
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+        .bufferMemoryBarrierCount = static_cast<uint32_t>(bufferBarriers.size()),
+        .pBufferMemoryBarriers    = bufferBarriers.data(),
         .imageMemoryBarrierCount = static_cast<uint32_t>(barriers.size()),
         .pImageMemoryBarriers = barriers.data(),
       };
@@ -470,7 +587,11 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
       etna::Binding { 0, vk::DescriptorBufferInfo { constants.get(), 0, VK_WHOLE_SIZE } },
       etna::Binding { 1, vk::DescriptorImageInfo { defaultSampler.get(), shadowMap.getView({ .aspectMask = vk::ImageAspectFlagBits::eDepth }), vk::ImageLayout::eShaderReadOnlyOptimal } },
       etna::Binding { 2, vk::DescriptorImageInfo { defaultSampler.get(), mainViewDepth.getView({ .aspectMask = vk::ImageAspectFlagBits::eDepth }), vk::ImageLayout::eShaderReadOnlyOptimal } },
-      etna::Binding { 3, vk::DescriptorImageInfo { defaultSampler.get(), gNormalMap.getView({ .aspectMask = vk::ImageAspectFlagBits::eColor }), vk::ImageLayout::eShaderReadOnlyOptimal } }
+      etna::Binding { 3, vk::DescriptorImageInfo { defaultSampler.get(), gNormalMap.getView({ .aspectMask = vk::ImageAspectFlagBits::eColor }), vk::ImageLayout::eShaderReadOnlyOptimal } },
+      etna::Binding { 4, vk::DescriptorBufferInfo { lightPos.get(), 0, VK_WHOLE_SIZE } },
+      etna::Binding { 5, vk::DescriptorBufferInfo { lightColor.get(), 0, VK_WHOLE_SIZE } },
+      etna::Binding { 6, vk::DescriptorBufferInfo { tileLightIndexes.get(), 0, VK_WHOLE_SIZE } },
+      etna::Binding { 7, vk::DescriptorBufferInfo { tileLightCount.get(), 0, VK_WHOLE_SIZE } },
     });
 
     VkDescriptorSet vkSet = set.getVkSet();

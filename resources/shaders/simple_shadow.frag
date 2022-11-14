@@ -29,23 +29,24 @@ layout(push_constant) uniform params_t
 layout (binding = 1) uniform sampler2D shadowMap;
 layout (binding = 2) uniform sampler2D depthMap;
 layout (binding = 3) uniform sampler2D gNormalMap;
+layout (binding = 4) uniform sampler2D gAlbedoMap;
 
-layout(binding = 4) readonly buffer LightPosB
+layout(binding = 5) readonly buffer LightPosB
 {
     vec3 LightPos[];
 };
 
-layout(binding = 5) readonly buffer LightColorB
+layout(binding = 6) readonly buffer LightColorB
 {
     vec4 LightColor[];
 };
 
-layout(binding = 6) readonly buffer TileLightIndexesB
+layout(binding = 7) readonly buffer TileLightIndexesB
 {
     uint TileLightIndexes[];    //2d [TileCount][LightCount]
 };
 
-layout(binding = 7) readonly buffer TileLightCountB
+layout(binding = 8) readonly buffer TileLightCountB
 {
     uint TileLightCount[];
 };
@@ -63,8 +64,9 @@ vec3 restore_world_position_from_depth()
 
 void main()
 {
-  vec3 wPos  = restore_world_position_from_depth();
-  vec3 wNorm = texture(gNormalMap, surf.texCoord).rgb;
+  vec3 wPos   = restore_world_position_from_depth();
+  vec3 wNorm  = texture(gNormalMap, surf.texCoord).rgb;
+  vec4 albedo = texture(gAlbedoMap, surf.texCoord);
   vec4 sumLightColor = vec4(0.0f);
   uint tilex  = uint(floor(surf.texCoord.x*PushConstant.TileDim));
   uint tiley  = uint(floor((1-surf.texCoord.y)*PushConstant.TileDim));
@@ -80,5 +82,5 @@ void main()
     vec4 lightColor = max(dot(wNorm, lightDir), 0.0f)*color;
     sumLightColor   += att*lightColor;
   }
-  out_fragColor= (sumLightColor+vec4(0.1f))*vec4(Params.baseColor, 1.0f);
+  out_fragColor= (sumLightColor+vec4(0.1f))*albedo*vec4(Params.baseColor, 1.0f);
 }

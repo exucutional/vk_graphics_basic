@@ -46,6 +46,7 @@ private:
   etna::Image mainViewDepth;
   etna::Image shadowMap;
   etna::Image gNormalMap;
+  etna::Image gAlbedoMap;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
   etna::Buffer lightPos;
@@ -71,6 +72,7 @@ private:
   {
     float4x4 projView;
     float4x4 model;
+    uint     albedoId;
   } pushConst2M;
 
   struct

@@ -28,4 +28,10 @@ struct UniformParams
   bool animateLightColor;
 };
 
+struct Plane
+{
+  vec4 pos;
+  vec4 norm;
+};
+
 #endif //VK_GRAPHICS_BASIC_COMMON_H

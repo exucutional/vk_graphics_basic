@@ -19,7 +19,7 @@ layout(binding = 0, set = 0) uniform AppData
   UniformParams Params;
 };
 
-layout (binding = 1) uniform sampler2D shadowMap;
+layout (binding = 2) uniform sampler2D shadowMap;
 
 float mainLight(vec3 pos)
 {

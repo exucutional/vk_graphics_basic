@@ -2,3 +2,4 @@ Name                  |    FPS    |   Diff   |
 ----------------------------------------------
 Base                  |    4-5    |     -    |
 Teapot instanced draw |   11-12   |   +275%  |
+Frustrum culling      |    145    |   +1300% |

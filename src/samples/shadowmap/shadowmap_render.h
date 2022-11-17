@@ -90,19 +90,39 @@ private:
     uint32_t instanceTransform = VK_FALSE;
   } pushConst2M;
 
+ struct
+  {
+    float4x4 model;
+    Plane leftPlane;
+    Plane rightPlane;
+    Plane topPlane;
+    Plane bottomPlane;
+    float4 bboxmin;
+    float4 bboxmax;
+    uint instanceMaxCount;
+  } pushConstFrustrumCulling;
+
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    
 
   UniformParams m_uniforms {};
   VkBuffer m_ubo = VK_NULL_HANDLE;
+  VkBuffer m_instanceIndexes = VK_NULL_HANDLE;
+  VkBuffer m_instanceCount   = VK_NULL_HANDLE;
   VkDeviceMemory m_uboAlloc = VK_NULL_HANDLE;
+  VkDeviceMemory m_instanceIndexesAlloc = VK_NULL_HANDLE;
+  VkDeviceMemory m_instanceCountAlloc = VK_NULL_HANDLE;
   void* m_uboMappedMem = nullptr;
+  void* m_instanceCountMappedMem = nullptr;
 
   pipeline_data_t m_basicForwardPipeline {};
   pipeline_data_t m_shadowPipeline {};
+  pipeline_data_t m_frustrumCullingPipeline {};
 
   VkDescriptorSet m_dSet = VK_NULL_HANDLE;
+  VkDescriptorSet m_frustrumCullingDSet = VK_NULL_HANDLE;
   VkDescriptorSetLayout m_dSetLayout = VK_NULL_HANDLE;
+  VkDescriptorSetLayout m_frustrumCullingDSetLayout = VK_NULL_HANDLE;
   VkRenderPass m_screenRenderPass = VK_NULL_HANDLE; // main renderpass
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
@@ -116,6 +136,7 @@ private:
   uint32_t m_width  = 1024u;
   uint32_t m_height = 1024u;
   uint32_t m_framesInFlight = 2u;
+  uint32_t m_instances      = 10000u;
   bool m_vsync = false;
 
   VkPhysicalDeviceFeatures m_enabledDeviceFeatures = {};
@@ -181,6 +202,7 @@ private:
   void RecreateSwapChain();
 
   void CreateUniformBuffer();
+  void CreateFrustrumCullingBuffers();
   void UpdateUniformBuffer(float a_time);
 
   void Cleanup();

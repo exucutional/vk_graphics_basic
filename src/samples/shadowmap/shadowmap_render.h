@@ -112,7 +112,7 @@ private:
   {
     ShadowMapCam() 
     {  
-      cam.pos    = float3(4.0f, 4.0f, 4.0f);
+      cam.pos    = float3(0.0f, 0.0f, 4.0f);
       cam.lookAt = float3(0, 0, 0);
       cam.up     = float3(0, 1, 0);
   

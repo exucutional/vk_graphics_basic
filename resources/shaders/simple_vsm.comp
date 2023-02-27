@@ -1,0 +1,137 @@
+// Gaussian filter
+#version 440
+const uint size = 32;
+
+layout(local_size_x = size, local_size_y = size) in;
+
+const uint window = 21;
+const uint offset = window/2;
+
+layout (rg32f, binding = 0) uniform readonly  image2D rawImage;
+layout (rg32f, binding = 1) uniform writeonly image2D blurredImage;
+layout (binding = 2) uniform gaussCoeffsB
+{
+    vec4 gaussCoeffs[window/4+1];
+};
+
+shared vec2[size+window-1][size+window-1] localImage;
+
+float getGaussCoeff(uint i)
+{
+    return gaussCoeffs[i/4][uint(mod(i, 4))];
+}
+
+void loadImageToShared(uvec2 id, uvec2 lid, uvec2 wgSize, ivec2 imgSize)
+{
+    localImage[lid.y+offset][lid.x+offset] = imageLoad(rawImage, ivec2(id)).xy;
+    if (lid.x < offset)                                             //load out of left workgroup bound
+    {
+        if (id.x < offset)
+            localImage[lid.y+offset][lid.x] = vec2(0.0f);
+        else
+            localImage[lid.y+offset][lid.x] = imageLoad(rawImage, ivec2(id.x-offset, id.y)).xy;
+    }
+    if (lid.y < offset)                                             //load out of top workgroup bound
+    {
+        if (id.y < offset)
+            localImage[lid.y][lid.x+offset] = vec2(0.0f);
+        else
+            localImage[lid.y][lid.x+offset] = imageLoad(rawImage, ivec2(id.x, id.y-offset)).xy;
+    }
+    if (lid.x < offset && lid.y < offset)                           //load out of left-top workgroup bound
+    {
+        if (id.x < offset || id.y < offset)
+            localImage[lid.y][lid.x] = vec2(0.0f);
+        else
+            localImage[lid.y][lid.x] = imageLoad(rawImage, ivec2(id.x-offset, id.y-offset)).xy;
+    }
+    if (lid.x > wgSize.x-offset-1)                                  //load out of right workgroup bound
+    {
+        if (id.x+offset > imgSize.x-1)
+            localImage[lid.y+offset][lid.x+2*offset] = vec2(0.0f);
+        else
+            localImage[lid.y+offset][lid.x+2*offset] = imageLoad(rawImage, ivec2(id.x+offset, id.y)).xy;
+    }
+    if (lid.y > wgSize.y-offset-1)                                  //load out of bottom workgroup bound
+    {
+        if (id.y+offset > imgSize.y-1)
+            localImage[lid.y+2*offset][lid.x+offset] = vec2(0.0f);
+        else
+            localImage[lid.y+2*offset][lid.x+offset] = imageLoad(rawImage, ivec2(id.x, id.y+offset)).xy;
+    }
+    if (lid.x > wgSize.x-offset-1 && lid.y > wgSize.y-offset-1)     //load out of right-bottom workgroup bound
+    {
+        if (id.x+offset > imgSize.x-1 || id.y+offset > imgSize.y-1)
+            localImage[lid.y+2*offset][lid.x+2*offset] = vec2(0.0f);
+        else
+            localImage[lid.y+2*offset][lid.x+2*offset] = imageLoad(rawImage, ivec2(id.x+offset, id.y+offset)).xy;
+    }
+    if (lid.x > wgSize.x-offset-1 && lid.y < offset)                //load out of right-top workgroup bound
+    {
+        if (id.x+offset > imgSize.x-1 || id.y < offset)
+            localImage[lid.y][lid.x+2*offset] = vec2(0.0f);
+        else
+            localImage[lid.y][lid.x+2*offset] = imageLoad(rawImage, ivec2(id.x+offset, id.y-offset)).xy;
+    }
+    if (lid.x < offset && lid.y > wgSize.y-offset-1)                //load out of left-bottom workgroup bound
+    {
+        if (id.x < offset || id.y+offset > imgSize.y-1)
+            localImage[lid.y+2*offset][lid.x] = vec2(0.0f);
+        else
+            localImage[lid.y+2*offset][lid.x] = imageLoad(rawImage, ivec2(id.x-offset, id.y+offset)).xy;
+    }
+    barrier();
+}
+
+void horizontalPass(uvec2 id, uvec2 lid, ivec2 imgSize, uint y)
+{
+    float hGaussSum  = 0.0f;
+    vec2 hGaussColor = vec2(0.0f);
+    for (int x = 0; x < window; x++)
+    {
+        hGaussColor += getGaussCoeff(x)*localImage[y][lid.x+x];
+        if (id.x+x >= offset && id.x-offset+x <= imgSize.x)     //check if iter in image bounds
+            hGaussSum += getGaussCoeff(x);
+    }
+    barrier();
+    localImage[y][lid.x+offset] = hGaussColor/hGaussSum;
+}
+
+void verticalPass(uvec2 id, uvec2 lid, ivec2 imgSize, uint x)
+{
+    float vGaussSum = 0.0;
+    vec2 vGaussColor = vec2(0.0f);
+    for (int y = 0; y < window; y++)
+    {
+        vGaussColor += getGaussCoeff(y)*localImage[lid.y+y][x];
+        if (id.y+y >= offset && id.y-offset+y <= imgSize.y)     //check if iter in image bounds
+            vGaussSum += getGaussCoeff(y);
+    }
+    barrier();
+    localImage[lid.y+offset][x] = vGaussColor/vGaussSum;
+}
+
+void storeSharedToImage(uvec2 id, uvec2 lid)
+{
+    imageStore(blurredImage, ivec2(id), vec4(localImage[lid.y+offset][lid.x+offset], 0.0f, 0.0f));
+}
+
+void main() 
+{
+    uvec2 id      = gl_GlobalInvocationID.xy;
+    uvec2 lid     = gl_LocalInvocationID.xy;
+    uvec2 wgSize  = gl_WorkGroupSize.xy;
+    ivec2 imgSize = imageSize(rawImage);
+    if (id.x < imgSize.x && id.y < imgSize.y)
+    {
+        loadImageToShared(id, lid, wgSize, imgSize);
+        horizontalPass(id, lid, imgSize, lid.y+offset);
+        if (lid.y < offset && id.y >= offset)
+            horizontalPass(id, lid, imgSize, lid.y);
+        if (lid.y > wgSize.y-offset-1 && id.y+offset <= imgSize.y-1)
+            horizontalPass(id, lid, imgSize, lid.y+2*offset);
+        barrier();
+        verticalPass(id, lid, imgSize, lid.x+offset);
+        storeSharedToImage(id, lid);
+    }
+}

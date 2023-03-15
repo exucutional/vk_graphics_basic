@@ -6,6 +6,7 @@
 SimpleShadowmapRender::SimpleShadowmapRender(uint32_t a_width, uint32_t a_height) : m_width(a_width), m_height(a_height)
 {
   m_uniforms.baseColor = LiteMath::float3(0.9f, 0.92f, 1.0f);
+  m_uniforms.tessLevel  = 16;
 }
 
 void SimpleShadowmapRender::InitVulkan(const char** a_instanceExtensions, uint32_t a_instanceExtensionsCount, uint32_t)
@@ -16,6 +17,7 @@ void SimpleShadowmapRender::InitVulkan(const char** a_instanceExtensions, uint32
   }
 
   SetupDeviceExtensions();
+  SetupDeviceFeatures();
   
   etna::initialize(etna::InitParams
     {
@@ -41,6 +43,11 @@ void SimpleShadowmapRender::InitVulkan(const char** a_instanceExtensions, uint32
 void SimpleShadowmapRender::SetupDeviceExtensions()
 {
   m_deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+}
+
+void SimpleShadowmapRender::SetupDeviceFeatures()
+{
+  m_enabledDeviceFeatures.setTessellationShader(true);
 }
 
 void SimpleShadowmapRender::RecreateSwapChain()

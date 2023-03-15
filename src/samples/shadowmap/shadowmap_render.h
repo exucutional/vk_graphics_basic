@@ -21,6 +21,12 @@
 
 class IRenderGUI;
 
+struct QuadVertexInput
+{
+  shader_vec4 position;
+  shader_vec4 texCoord;
+};
+
 class SimpleShadowmapRender : public IRender
 {
 public:
@@ -49,6 +55,9 @@ private:
   etna::Image shadowMap;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
+  etna::Buffer noiseMap;
+  etna::Buffer quadVertexBuffer;
+  etna::Buffer quadIndexBuffer;
 
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
 
@@ -67,6 +76,7 @@ private:
   {
     float4x4 projView;
     float4x4 model;
+    uint noiseSize;
   } pushConst2M;
 
   float4x4 m_worldViewProj;
@@ -74,6 +84,7 @@ private:
 
   UniformParams m_uniforms {};
   void* m_uboMappedMem = nullptr;
+  void* m_noiseMappedMem = nullptr;
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
@@ -87,6 +98,11 @@ private:
   uint32_t m_width  = 1024u;
   uint32_t m_height = 1024u;
   uint32_t m_framesInFlight = 2u;
+  uint32_t m_noiseSize      = 100u;
+  float m_noiseMax          = 0.5f;
+  float m_noiseMaxOld       = 0.0f; 
+  float m_noiseMin          = 0.0f;
+  float m_noiseMinOld       = 0.0f;
   bool m_vsync = false;
 
   vk::PhysicalDeviceFeatures m_enabledDeviceFeatures = {};
@@ -136,6 +152,7 @@ private:
   void BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView);
 
   void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp);
+  void DrawQuadCmd(VkCommandBuffer a_cmdBuff, const float4x4 &a_wvp);
 
   void loadShaders();
 
@@ -143,9 +160,10 @@ private:
   void RecreateSwapChain();
 
   void UpdateUniformBuffer(float a_time);
-
+  void GenerateNoiseMap();
 
   void SetupDeviceExtensions();
+  void SetupDeviceFeatures();
 
   void AllocateResources();
   void PreparePipelines();

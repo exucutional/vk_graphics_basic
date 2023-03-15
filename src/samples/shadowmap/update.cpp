@@ -1,5 +1,5 @@
 #include "../../utils/input_definitions.h"
-
+#include <random>
 #include "etna/Etna.hpp"
 #include "shadowmap_render.h"
 
@@ -46,6 +46,30 @@ void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
   m_uniforms.time        = a_time;
 
   memcpy(m_uboMappedMem, &m_uniforms, sizeof(m_uniforms));
+
+  if (m_noiseMaxOld != m_noiseMax || m_noiseMinOld != m_noiseMin)
+  {
+    GenerateNoiseMap();
+    m_noiseMaxOld = m_noiseMax;
+    m_noiseMinOld = m_noiseMin;
+  }
+}
+
+void SimpleShadowmapRender::GenerateNoiseMap()
+{
+  std::vector<float> noise;
+  noise.reserve(m_noiseSize * m_noiseSize);
+  std::random_device rdevice;
+  std::mt19937 gen(rdevice());
+  std::uniform_real_distribution<float> real_dist(m_noiseMin, m_noiseMax);
+  for (int i = 0; i < m_noiseSize; ++i)
+  {
+    for (int j = 0; j < m_noiseSize; ++j)
+    {
+      noise.push_back(real_dist(gen));
+    }
+  }
+  memcpy(m_noiseMappedMem, noise.data(), noise.size() * sizeof(float));
 }
 
 void SimpleShadowmapRender::ProcessInput(const AppInput &input)

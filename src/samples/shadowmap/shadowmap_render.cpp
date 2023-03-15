@@ -40,7 +40,60 @@ void SimpleShadowmapRender::AllocateResources()
     .name = "constants"
   });
 
+  noiseMap = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size        = m_noiseSize * m_noiseSize * sizeof(float),
+    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
+    .name        = "noise_map",
+  });
+
+  quadVertexBuffer = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size        = 9 * sizeof(QuadVertexInput),
+    .bufferUsage = vk::BufferUsageFlagBits::eVertexBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
+    .name        = "quad_vertex_buffer",
+  });
+
+  quadIndexBuffer = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size        = 16 * sizeof(uint),
+    .bufferUsage = vk::BufferUsageFlagBits::eIndexBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
+    .name        = "quad_index_buffer"
+  });
+
   m_uboMappedMem = constants.map();
+
+  const std::vector<QuadVertexInput> vertices =
+  {
+    { { -1.27f, -1.27f, 1.27f, 0.0f }, { 1.0f, 0.0f, 0.0f, 0.0f } }, // 0
+    { { -1.27f, -1.27f, -1.27f, 0.0f }, { 1.0f, 1.0f, 0.0f, 0.0f } },// 1
+    { { 1.27f, -1.27f, -1.27f, 0.0f }, { 0.0f, 1.0f, 0.0f, 0.0f } }, // 2
+    { { 1.27f, -1.27f, 1.27f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f } },  // 3
+    { { -1.27f, -1.27f, 0.0f, 0.0f }, { 1.0f, 0.5f, 0.0f, 0.0f } },  // 4
+    { { 0.0f, -1.27f, 0.0f, 0.0f }, { 0.5f, 0.5f, 0.0f, 0.0f } },    // 5
+    { { 0.0f, -1.27f, 1.27f, 0.0f }, { 0.5f, 0.0f, 0.0f, 0.0f } },   // 6
+    { { 1.27f, -1.27f, 0.0f, 0.0f }, { 0.0f, 0.5f, 0.0f, 0.0f } },   // 7
+    { { 0.0f, -1.27f, -1.27f, 0.0f }, { 0.5f, 1.0f, 0.0f, 0.0f } },  // 8
+    // 0 - 6 - 3
+    // |   |   |
+    // 4 - 5 - 7
+    // |   |   |
+    // 1 - 8 - 2
+  };
+  const std::vector<uint> indices =
+  {
+    0, 4, 6, 5, 6, 5, 3, 7, 7, 5, 2, 8, 8, 5, 1, 4
+  };
+  void* quadVertexMappedMem = quadVertexBuffer.map();
+  memcpy(quadVertexMappedMem, vertices.data(), vertices.size() * sizeof(QuadVertexInput));
+  quadVertexBuffer.unmap();
+  void* quadIndexMappedMem = quadIndexBuffer.map();
+  memcpy(quadIndexMappedMem, indices.data(), indices.size() * sizeof(uint));
+  quadIndexBuffer.unmap();
+  m_noiseMappedMem = noiseMap.map();
 }
 
 void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matrices)
@@ -97,8 +150,18 @@ void SimpleShadowmapRender::PreparePipelines()
 void SimpleShadowmapRender::loadShaders()
 {
   etna::create_program("simple_material",
-    {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_shadow.frag.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
-  etna::create_program("simple_shadow", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
+  {
+    VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_shadow.frag.spv",
+    VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv",
+    VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.tesc.spv", 
+    VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.tese.spv"
+  });
+  etna::create_program("simple_shadow",
+  {
+     VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv",
+     VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.tesc.spv",
+     VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.tese.spv"
+  });
 }
 
 void SimpleShadowmapRender::SetupSimplePipeline()
@@ -126,6 +189,14 @@ void SimpleShadowmapRender::SetupSimplePipeline()
   m_basicForwardPipeline = pipelineManager.createGraphicsPipeline("simple_material",
     {
       .vertexShaderInput = sceneVertexInputDesc,
+      .inputAssemblyConfig =
+        {
+          .topology = vk::PrimitiveTopology::ePatchList
+        },
+      .tessellationConfig = 
+        {
+          .patchControlPoints = 4
+        },
       .fragmentShaderOutput =
         {
           .colorAttachmentFormats = {static_cast<vk::Format>(m_swapchain.GetFormat())},
@@ -135,6 +206,14 @@ void SimpleShadowmapRender::SetupSimplePipeline()
   m_shadowPipeline = pipelineManager.createGraphicsPipeline("simple_shadow",
     {
       .vertexShaderInput = sceneVertexInputDesc,
+      .inputAssemblyConfig =
+        {
+          .topology = vk::PrimitiveTopology::ePatchList
+        },
+      .tessellationConfig = 
+        {
+          .patchControlPoints = 4
+        },
       .fragmentShaderOutput =
         {
           .depthAttachmentFormat = vk::Format::eD16Unorm
@@ -175,6 +254,23 @@ void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4
   }
 }
 
+void SimpleShadowmapRender::DrawQuadCmd(VkCommandBuffer a_cmdBuff, const float4x4 &a_wvp)
+{
+  VkShaderStageFlags stageFlags = (VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT);
+  VkDeviceSize zero_offset = 0u;
+  VkBuffer vertexBuf = quadVertexBuffer.get();
+  VkBuffer indexBuf  = quadIndexBuffer.get();
+
+  vkCmdBindVertexBuffers(a_cmdBuff, 0, 1, &vertexBuf, &zero_offset);
+  vkCmdBindIndexBuffer(a_cmdBuff, indexBuf, 0, VK_INDEX_TYPE_UINT32);
+
+  pushConst2M.projView = a_wvp;
+  pushConst2M.noiseSize  = m_noiseSize;
+  vkCmdPushConstants(a_cmdBuff, m_basicForwardPipeline.getVkPipelineLayout(),
+    stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
+  vkCmdDrawIndexed(a_cmdBuff, 16, 1, 0, 0, 0);
+}
+
 void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView)
 {
   vkResetCommandBuffer(a_cmdBuff, 0);
@@ -188,10 +284,23 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   //// draw scene to shadowmap
   //
   {
+    auto simpleShadowInfo = etna::get_shader_program("simple_shadow");
+
+    auto set = etna::create_descriptor_set(simpleShadowInfo.getDescriptorLayoutId(0), a_cmdBuff,
+    {
+      etna::Binding {0, constants.genBinding()},
+      etna::Binding {1, shadowMap.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding {2, noiseMap.genBinding()}
+    });
+
+    VkDescriptorSet vkSet = set.getVkSet();
     etna::RenderTargetState renderTargets(a_cmdBuff, {2048, 2048}, {}, shadowMap);
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline.getVkPipeline());
-    DrawSceneCmd(a_cmdBuff, m_lightMatrix);
+    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
+      m_shadowPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+    //DrawSceneCmd(a_cmdBuff, m_lightMatrix);
+    DrawQuadCmd(a_cmdBuff, m_lightMatrix);
   }
 
   //// draw final scene to screen
@@ -202,7 +311,8 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     auto set = etna::create_descriptor_set(simpleMaterialInfo.getDescriptorLayoutId(0), a_cmdBuff,
     {
       etna::Binding {0, constants.genBinding()},
-      etna::Binding {1, shadowMap.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}
+      etna::Binding {1, shadowMap.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding {2, noiseMap.genBinding()}
     });
 
     VkDescriptorSet vkSet = set.getVkSet();
@@ -213,7 +323,8 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
       m_basicForwardPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
 
-    DrawSceneCmd(a_cmdBuff, m_worldViewProj);
+    //DrawSceneCmd(a_cmdBuff, m_worldViewProj);
+    DrawQuadCmd(a_cmdBuff, m_worldViewProj);
   }
 
   if(m_input.drawFSQuad)

@@ -16,11 +16,14 @@ void SimpleShadowmapRender::UpdateView()
   ///// calc camera matrix
   //
   const float aspect = float(m_width) / float(m_height);
+  m_uniforms.aspect = aspect;
+  m_uniforms.fov = m_cam.fov;
   auto mProjFix = OpenglToVulkanProjectionMatrixFix();
   auto mProj = projectionMatrix(m_cam.fov, aspect, 0.1f, 1000.0f);
   auto mLookAt = LiteMath::lookAt(m_cam.pos, m_cam.lookAt, m_cam.up);
   auto mWorldViewProj = mProjFix * mProj * mLookAt;
-  
+  m_uniforms.projInverse = LiteMath::inverse4x4(mProjFix * mProj);
+  m_uniforms.viewInverse = LiteMath::inverse4x4(mLookAt);
   m_worldViewProj = mWorldViewProj;
   
   ///// calc light matrix
@@ -44,7 +47,7 @@ void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
   m_uniforms.lightMatrix = m_lightMatrix;
   m_uniforms.lightPos    = m_light.cam.pos; //LiteMath::float3(sinf(a_time), 1.0f, cosf(a_time));
   m_uniforms.time        = a_time;
-
+  m_uniforms.cameraPos   = m_cam.pos;
   memcpy(m_uboMappedMem, &m_uniforms, sizeof(m_uniforms));
 
   if (m_noiseMaxOld != m_noiseMax || m_noiseMinOld != m_noiseMin)

@@ -53,6 +53,9 @@ private:
   etna::GlobalContext* m_context;
   etna::Image mainViewDepth;
   etna::Image shadowMap;
+  etna::Image gbuffer;
+  etna::Image fogMap;
+  etna::Image fogDepthMap;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
   etna::Buffer noiseMap;
@@ -88,6 +91,8 @@ private:
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
+  etna::GraphicsPipeline m_fogPipeline {};
+  etna::GraphicsPipeline m_deferredPipeline{};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -152,7 +157,7 @@ private:
   void BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView);
 
   void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp);
-  void DrawQuadCmd(VkCommandBuffer a_cmdBuff, const float4x4 &a_wvp);
+  void DrawTerrainCmd(VkCommandBuffer a_cmdBuff, const float4x4 &a_wvp);
 
   void loadShaders();
 

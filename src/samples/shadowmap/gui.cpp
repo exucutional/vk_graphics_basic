@@ -17,7 +17,6 @@ void SimpleShadowmapRender::SetupGUIElements()
     ImGui::SliderFloat("Min height", &m_noiseMin, 0.0f, m_noiseMax);
     ImGui::SliderInt("Tessellation level", (int*)&m_uniforms.tessLevel, 1, 64);
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-
     ImGui::NewLine();
 
     ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f),"Press 'B' to recompile and reload shaders");

@@ -46,6 +46,8 @@ public:
 private:
   etna::GlobalContext* m_context;
   etna::Image mainViewDepth;
+  etna::Image mainViewDepthSS;
+  etna::Image mainViewSS;
   etna::Image shadowMap;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
@@ -77,6 +79,7 @@ private:
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
+  etna::GraphicsPipeline m_ssaaPipeline {};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -88,6 +91,7 @@ private:
   uint32_t m_height = 1024u;
   uint32_t m_framesInFlight = 2u;
   bool m_vsync = false;
+  bool m_ssaa  = false;
 
   vk::PhysicalDeviceFeatures m_enabledDeviceFeatures = {};
   std::vector<const char*> m_deviceExtensions;

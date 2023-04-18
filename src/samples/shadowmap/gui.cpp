@@ -13,7 +13,9 @@ void SimpleShadowmapRender::SetupGUIElements()
 
     ImGui::ColorEdit3("Meshes base color", m_uniforms.baseColor.M, ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoInputs);
     ImGui::SliderFloat3("Light source position", m_uniforms.lightPos.M, -10.f, 10.f);
-
+    ImGui::Checkbox("SSAO", &m_ssao);
+    ImGui::Checkbox("Blur SSAO", &m_blur_ssao);
+    ImGui::SliderFloat("SSAO radius", &m_ssaoRadius, 0.001, 2.0);
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 
     ImGui::NewLine();

@@ -15,7 +15,8 @@ void SimpleShadowmapRender::SetupGUIElements()
     ImGui::SliderFloat3("Light source position", m_uniforms.lightPos.M, -10.f, 10.f);
 
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-
+    ImGui::Checkbox("Tone mapping", &m_tone_mapping);
+    ImGui::SliderFloat("Light brightness", &m_light_brightness, 1.0f, 10.0f);
     ImGui::NewLine();
 
     ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f),"Press 'B' to recompile and reload shaders");

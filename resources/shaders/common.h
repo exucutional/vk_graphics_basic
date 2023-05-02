@@ -39,6 +39,25 @@ using shader_bool  = LiteMath::uint;
 
 #define shader_bool  bool
 
+vec3 getAlbedo(uint albedoId)
+{
+  switch (albedoId)
+  {
+  case 0:
+    return vec3(0.57f, 0.4f, 0.65f);
+  case 1:
+    return vec3(0.99f, 0.1f, 0.2f);
+  case 2:
+    return vec3(0.3f, 0.9f, 0.32f);
+  case 3:
+    return vec3(0.93f, 0.9f, 0.19f);
+  case 4:
+    return vec3(0.11f, 0.25f, 0.95f);
+  case 5:
+    return vec3(0.2f, 0.90f, 0.90f);
+  }
+}
+
 #endif
 
 
@@ -49,6 +68,10 @@ struct UniformParams
   shader_float time;
   shader_vec3  baseColor;
   shader_bool  animateLightColor;
+  shader_uint  rsmSampleCount;
+  shader_float rsmRadius;
+  shader_bool  rsmEnabled;
+  shader_float rsmIntentsity;
 };
 
 #endif // VK_GRAPHICS_BASIC_COMMON_H

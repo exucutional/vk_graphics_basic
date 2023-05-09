@@ -49,7 +49,7 @@ vec4 accumulateFlux(vec3 wPos, vec3 wNorm, vec2 texCoord)
       *max(0, dot(wNorm, sampleWPos-wPos))
       /pow(length(wPos-sampleWPos), 4);
   }
-  return clamp(acc * Params.rsmIntentsity, 0.0f, 1.0f);
+  return clamp(acc * Params.rsmIntentsity / Params.rsmSampleCount, 0.0f, 1.0f);
 }
 
 void main()

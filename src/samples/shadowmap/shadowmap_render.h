@@ -94,7 +94,7 @@ private:
   uint32_t m_framesInFlight = 2u;
   uint32_t m_rsmSamplesCount = 12;
   float m_rsmRadius = 0.05;
-  float m_rsmIntensity = 0.01;
+  float m_rsmIntensity = 0.1;
   bool m_vsync = false;
   bool m_rsm = true;
 

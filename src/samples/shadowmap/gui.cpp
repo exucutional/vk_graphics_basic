@@ -16,7 +16,7 @@ void SimpleShadowmapRender::SetupGUIElements()
     ImGui::Checkbox("RSM", &m_rsm);
     ImGui::SliderFloat("RSM radius", &m_rsmRadius, 0.01, 0.3);
     ImGui::SliderInt("RSM samples", (int*)&m_rsmSamplesCount, 1, 32);
-    ImGui::SliderFloat("RSM intensity", &m_rsmIntensity, 0.001, 0.1);
+    ImGui::SliderFloat("RSM intensity", &m_rsmIntensity, 0.001, 0.3);
 
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 

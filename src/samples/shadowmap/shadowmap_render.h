@@ -45,10 +45,10 @@ public:
 
 private:
   etna::GlobalContext* m_context;
-  etna::Image mainViewDepth;
-  etna::Image shadowMap;
+  etna::Image mainViewDepth;;
   etna::Sampler defaultSampler;
-  etna::Buffer constants;
+  etna::Buffer particles;
+  etna::Buffer particlesSpawnCount;
 
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
 
@@ -69,14 +69,30 @@ private:
     float4x4 model;
   } pushConst2M;
 
+  struct
+  {
+    uint particlesMaxCount;
+    uint particlesSpawnMaxCount;
+    float particlesLifetime;
+    float particlesVelocityScale;
+  } pushConst2Emitter;
+
+  struct
+  {
+    uint particlesMaxCount;
+    float dt;
+    float M;
+  } pushConst2Compute;
+
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    
 
   UniformParams m_uniforms {};
-  void* m_uboMappedMem = nullptr;
+  void* m_particlesSpawnCountMappedMem = nullptr;
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
-  etna::GraphicsPipeline m_shadowPipeline {};
+  etna::ComputePipeline m_emitterPipeline {};
+  etna::ComputePipeline m_computePipeline {};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -87,6 +103,12 @@ private:
   uint32_t m_width  = 1024u;
   uint32_t m_height = 1024u;
   uint32_t m_framesInFlight = 2u;
+  uint32_t m_particlesMaxCount = 1000000u;
+  float m_particlesLifetime = 5.0f;
+  uint32_t m_particlesSpawnMaxCount = 100u;
+  float m_particlesVelocityScale = 5.0f;
+  float m_pointSize = 2.0f;
+  float m_M = 100.0f;
   bool m_vsync = false;
 
   vk::PhysicalDeviceFeatures m_enabledDeviceFeatures = {};

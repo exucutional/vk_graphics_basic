@@ -1,0 +1,53 @@
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_GOOGLE_include_directive : require
+
+#include "common.h"
+
+layout( local_size_x = 32 ) in;
+
+layout( push_constant ) uniform params {
+  uint particlesMaxCount;
+  float dt;
+  float M;
+} PushConstant;
+
+layout(std430, binding = 0) buffer ParticleBuf
+{
+    Particle particles[];
+};
+
+void apply_force(inout vec2 position, inout vec2 velocity, in float t)
+{
+    vec2 focus[] = {{0.0f, 8.0f}, {0.0f, -8.0f}, {8.0f, 0.0f}, {-8.0f, 0.0f}};
+    vec2 acceleration = vec2(0.0f);
+    for (int i = 0; i < 4; ++i)
+    {
+      vec2 r = position-focus[i];
+      float r2 = abs(dot(r, r));
+      r2 = max(r2, 0.1);
+      acceleration += -normalize(r)*PushConstant.M/r2;
+    }
+    position += acceleration*t*t/2;
+    velocity += acceleration*t;
+}
+
+void main() 
+{
+    uint idx = gl_GlobalInvocationID.x;
+    if (idx < PushConstant.particlesMaxCount)
+    {
+        float t = PushConstant.dt;
+        if (t >= particles[idx].time)
+          particles[idx].time = 0.0f;
+
+        if (particles[idx].time > 0.0f)
+        {
+          vec2 r = particles[idx].position;
+          float r2 = abs(dot(r, r));
+          particles[idx].position += t*particles[idx].velocity;
+          particles[idx].time -= t;
+          apply_force(particles[idx].position, particles[idx].velocity, t);
+        }
+    }
+}

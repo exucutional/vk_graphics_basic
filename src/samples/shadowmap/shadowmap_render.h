@@ -45,10 +45,14 @@ public:
 
 private:
   etna::GlobalContext* m_context;
-  etna::Image mainViewDepth;;
+  etna::Image mainViewDepth;
   etna::Sampler defaultSampler;
-  etna::Buffer particles;
-  etna::Buffer particlesSpawnCount;
+  std::vector<etna::Buffer> pointLods;
+  std::vector<etna::Buffer> vertexLods;
+  std::vector<etna::Buffer> indexLods;
+  etna::Buffer pointBuf;
+  etna::Buffer vertexBuf;
+  etna::Buffer indexBuf;
 
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
 
@@ -67,32 +71,26 @@ private:
   {
     float4x4 projView;
     float4x4 model;
+    int instanceCountSqrt;
+    float pointSize;
   } pushConst2M;
-
-  struct
-  {
-    uint particlesMaxCount;
-    uint particlesSpawnMaxCount;
-    float particlesLifetime;
-    float particlesVelocityScale;
-  } pushConst2Emitter;
-
-  struct
-  {
-    uint particlesMaxCount;
-    float dt;
-    float M;
-  } pushConst2Compute;
 
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    
+  int m_lod = 0;
+  bool m_pointRendering = true;
+  int m_polygonCount = 0;
+  int m_pointCount = 0;
+  std::vector<uint> vertexLodCount;
+  std::vector<uint> indexLodCount;
+  std::vector<uint> pointLodCount;
+  bool vertexBufferCopy = true;
 
   UniformParams m_uniforms {};
   void* m_particlesSpawnCountMappedMem = nullptr;
 
-  etna::GraphicsPipeline m_basicForwardPipeline {};
-  etna::ComputePipeline m_emitterPipeline {};
-  etna::ComputePipeline m_computePipeline {};
+  etna::GraphicsPipeline m_basicPolygonPipeline {};
+  etna::GraphicsPipeline m_basicPointPipeline {};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -104,11 +102,8 @@ private:
   uint32_t m_height = 1024u;
   uint32_t m_framesInFlight = 2u;
   uint32_t m_particlesMaxCount = 1000000u;
-  float m_particlesLifetime = 5.0f;
-  uint32_t m_particlesSpawnMaxCount = 100u;
-  float m_particlesVelocityScale = 5.0f;
   float m_pointSize = 2.0f;
-  float m_M = 100.0f;
+  int m_instanceCount = 1000;
   bool m_vsync = false;
 
   vk::PhysicalDeviceFeatures m_enabledDeviceFeatures = {};
@@ -157,7 +152,8 @@ private:
 
   void BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView);
 
-  void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp);
+  void DrawPointSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp);
+  void DrawPolySceneCmd(VkCommandBuffer a_cmdBuff, const float4x4 &a_wvp);
 
   void loadShaders();
 
@@ -178,6 +174,8 @@ private:
   void InitPresentStuff();
   void ResetPresentStuff();
   void SetupGUIElements();
+  void LoadPointScene(int lod_n, const char *path);
+  void LoadPolyScene(int lod_n, const char *path);
 };
 
 

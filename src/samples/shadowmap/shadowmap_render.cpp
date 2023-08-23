@@ -5,12 +5,13 @@
 #include <vk_buffers.h>
 #include <iostream>
 #include <random>
+#include <algorithm>
 
 #include <etna/GlobalContext.hpp>
 #include <etna/Etna.hpp>
 #include <etna/RenderTargetStates.hpp>
 #include <vulkan/vulkan_core.h>
-
+#include "loader_utils/ply_reader.hpp"
 
 /// RESOURCE ALLOCATION
 
@@ -24,40 +25,85 @@ void SimpleShadowmapRender::AllocateResources()
     .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment
   });
 
-  particles = m_context->createBuffer(etna::Buffer::CreateInfo
-  {
-    .size = sizeof(Particle) * m_particlesMaxCount,
-    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eVertexBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
-    .name = "particles"
-  });
+  //void* particlesMappedMem = particles.map();
+  //std::vector<Particle> particlesVec(m_particlesMaxCount);
+  //std::random_device rd;
+  //std::mt19937 gen(rd());
+  //std::uniform_real_distribution<> disn(-1.0f, 1.0f);
+  //std::uniform_real_distribution<> disp(0.0f, 1.0f);
+  //for (auto& particle : particlesVec)
+  //{
+  //  particle.color    = float4(disp(gen), disp(gen), disp(gen), 1.0f);
+  //  particle.position = float2(0.0f);
+  //  particle.velocity = LiteMath::normalize(float2(disn(gen), disn(gen)));
+  //  particle.time     = 0.0f;
+  //}
 
-  particlesSpawnCount = m_context->createBuffer(etna::Buffer::CreateInfo
-  {
-    .size = sizeof(uint),
-    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
-    .name = "particlesSpawnCount"
-  });
+  //memcpy(particlesMappedMem, particlesVec.data(), particlesVec.size() * sizeof(Particle));
+  //particles.unmap();
+  //m_particlesSpawnCountMappedMem = particlesSpawnCount.map();
+  //*static_cast<uint*>(m_particlesSpawnCountMappedMem) = 0;
+}
 
-  void* particlesMappedMem = particles.map();
-  std::vector<Particle> particlesVec(m_particlesMaxCount);
-  std::random_device rd;
-  std::mt19937 gen(rd());
-  std::uniform_real_distribution<> disn(-1.0f, 1.0f);
-  std::uniform_real_distribution<> disp(0.0f, 1.0f);
-  for (auto& particle : particlesVec)
+void SimpleShadowmapRender::LoadPointScene(int lod_n, const char *path)
+{
+  std::vector<ply::Vertex> pointCloud;
+  std::vector<ply::Face> faces;
+  ply::read_ply_file(path, pointCloud, faces);
+  pointLods[lod_n] = m_context->createBuffer(etna::Buffer::CreateInfo
   {
-    particle.color    = float4(disp(gen), disp(gen), disp(gen), 1.0f);
-    particle.position = float2(0.0f);
-    particle.velocity = LiteMath::normalize(float2(disn(gen), disn(gen)));
-    particle.time     = 0.0f;
+    .size        = sizeof(float3) * pointCloud.size(),
+    .bufferUsage = vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferSrc,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
+    .name        = std::format("bunny_lod_{}", lod_n)
+  });
+  pointLodCount[lod_n] = pointCloud.size();
+  auto buffer = pointLods[lod_n].map();
+  for (auto &v : pointCloud)
+  {
+    float3 pos{ v.x, v.y, v.z };
+    memcpy(buffer, &pos, sizeof(float3));
+    buffer += sizeof(float3);
   }
+  pointLods[lod_n].unmap();
+}
 
-  memcpy(particlesMappedMem, particlesVec.data(), particlesVec.size() * sizeof(Particle));
-  particles.unmap();
-  m_particlesSpawnCountMappedMem = particlesSpawnCount.map();
-  *static_cast<uint*>(m_particlesSpawnCountMappedMem) = 0;
+void SimpleShadowmapRender::LoadPolyScene(int lod_n, const char *path)
+{
+  std::vector<ply::Vertex> pointCloud;
+  std::vector<ply::Face> faces;
+  ply::read_ply_file(path, pointCloud, faces);
+  vertexLods[lod_n] = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size        = sizeof(float3) * pointCloud.size(),
+    .bufferUsage = vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferSrc,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
+    .name        = std::format("bunny_vertex_lod_{}", lod_n)
+  });
+  indexLods[lod_n] = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size        = sizeof(uint3) * faces.size(),
+    .bufferUsage = vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferSrc,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
+    .name        = std::format("bunny_index_lod_{}", lod_n)
+  });
+  vertexLodCount[lod_n] = pointCloud.size();
+  indexLodCount[lod_n] = faces.size();
+  auto vertexBuffer = vertexLods[lod_n].map();
+  for (auto &v : pointCloud)
+  {
+    float3 pos{ v.x, v.y, v.z };
+    memcpy(vertexBuffer, &pos, sizeof(float3));
+    vertexBuffer += sizeof(float3);
+  }
+  vertexLods[lod_n].unmap();
+  auto indexBuffer = indexLods[lod_n].map();
+  for (auto& f : faces)
+  {
+    memcpy(indexBuffer, f.verts, sizeof(int)*f.nverts);
+    indexBuffer += sizeof(int3);
+  }
+  indexLods[lod_n].unmap();
 }
 
 void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matrices)
@@ -65,6 +111,42 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   // TODO: Make a separate stage
   loadShaders();
   PreparePipelines();
+  vertexLods.resize(6);
+  indexLods.resize(6);
+  vertexLodCount.resize(6);
+  indexLodCount.resize(6);
+  pointLods.resize(6);
+  pointLodCount.resize(6);
+  for (int i = 0; i < 6; ++i)
+  {
+    LoadPolyScene(i, std::format(VK_GRAPHICS_BASIC_ROOT"/resources/scenes/bunny/reconstruction/bun_lod_{}.ply", i).c_str());
+    LoadPointScene(i, std::format(VK_GRAPHICS_BASIC_ROOT"/resources/scenes/bunny/data/bun_lod_{}.ply", i).c_str());
+  }
+  const auto maxVertexCount = *std::max_element(vertexLodCount.cbegin(), vertexLodCount.cend());
+  const auto maxIndexCount  = *std::max_element(indexLodCount.cbegin(), indexLodCount.cend());
+  const auto maxPointCount  = *std::max_element(pointLodCount.cbegin(), pointLodCount.cend());
+  vertexBuf = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size        = sizeof(float3) * maxVertexCount,
+    .bufferUsage = vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst,
+    .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
+    .name        = "bunny_vertex",
+  });
+  indexBuf = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size        = sizeof(uint3) * maxIndexCount,
+    .bufferUsage = vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst,
+    .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
+    .name        = "bunny_index",
+  });
+  pointBuf = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size        = sizeof(float3) * maxPointCount,
+    .bufferUsage = vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst,
+    .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
+    .name        = "bunny_points",
+  });
+  vertexBufferCopy = true;
 }
 
 void SimpleShadowmapRender::DeallocateResources()
@@ -73,8 +155,9 @@ void SimpleShadowmapRender::DeallocateResources()
   m_swapchain.Cleanup();
   vkDestroySurfaceKHR(GetVkInstance(), m_surface, nullptr);  
 
-  particles = etna::Buffer();
-  particlesSpawnCount = etna::Buffer();
+  pointBuf = etna::Buffer();
+  vertexBuf = etna::Buffer();
+  indexBuf = etna::Buffer();
 }
 
 
@@ -90,10 +173,10 @@ void SimpleShadowmapRender::PreparePipelines()
 
 void SimpleShadowmapRender::loadShaders()
 {
-  etna::create_program("simple_particles",
-    {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_particles.frag.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_particles.vert.spv"});
-  etna::create_program("emitter", { VK_GRAPHICS_BASIC_ROOT "/resources/shaders/emitter.comp.spv" });
-  etna::create_program("compute", { VK_GRAPHICS_BASIC_ROOT "/resources/shaders/compute.comp.spv" });
+  etna::create_program("simple_points",
+    {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/point.frag.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/point.vert.spv"});
+  etna::create_program("simple_polygons",
+    {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/point.frag.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/point.vert.spv"});
 }
 
 void SimpleShadowmapRender::SetupSimplePipeline()
@@ -105,48 +188,30 @@ void SimpleShadowmapRender::SetupSimplePipeline()
   //    .bindings = bindings;
   //  };
 
-  etna::VertexByteStreamFormatDescription::Attribute attributeColor =
-  {
-    .format = vk::Format::eR32G32B32A32Sfloat,
-    .offset = 0,
-  };
-
   etna::VertexByteStreamFormatDescription::Attribute attributePosition =
   {
-    .format = vk::Format::eR32G32Sfloat,
-    .offset = sizeof(float4),
-  };
-
-  etna::VertexByteStreamFormatDescription::Attribute attributeVelocity =
-  {
-    .format = vk::Format::eR32G32Sfloat,
-    .offset = sizeof(float4) + sizeof(float2),
-  };
-
-  etna::VertexByteStreamFormatDescription::Attribute attributeTime =
-  {
-    .format = vk::Format::eR32Sfloat,
-    .offset = sizeof(float4) + sizeof(float2) + sizeof(float2),
+    .format = vk::Format::eR32G32B32Sfloat,
+    .offset = 0,
   };
 
   etna::VertexShaderInputDescription::Binding binding =
   {
     .byteStreamDescription =
       {
-        .stride = sizeof(Particle),
-        .attributes = { attributeColor, attributePosition, attributeVelocity, attributeTime}
+        .stride = sizeof(float3),
+        .attributes = { attributePosition }
       }
   };
 
-  etna::VertexShaderInputDescription particleInput =
+  etna::VertexShaderInputDescription positionInput =
   {
     .bindings = { binding },
   };
 
   auto& pipelineManager = etna::get_context().getPipelineManager();
-  m_basicForwardPipeline = pipelineManager.createGraphicsPipeline("simple_particles",
+  m_basicPointPipeline = pipelineManager.createGraphicsPipeline("simple_points",
     {
-      .vertexShaderInput = particleInput,
+      .vertexShaderInput = positionInput,
       .inputAssemblyConfig = {
         .topology = vk::PrimitiveTopology::ePointList,
       },
@@ -156,9 +221,15 @@ void SimpleShadowmapRender::SetupSimplePipeline()
           .depthAttachmentFormat = vk::Format::eD32Sfloat
         }
     });
-
-  m_emitterPipeline = pipelineManager.createComputePipeline("emitter", {});
-  m_computePipeline = pipelineManager.createComputePipeline("compute", {});
+  m_basicPolygonPipeline = pipelineManager.createGraphicsPipeline("simple_polygons",
+    {
+      .vertexShaderInput = positionInput,
+      .fragmentShaderOutput =
+        {
+          .colorAttachmentFormats = {static_cast<vk::Format>(m_swapchain.GetFormat())},
+          .depthAttachmentFormat = vk::Format::eD32Sfloat
+        }
+    });
 }
 
 void SimpleShadowmapRender::DestroyPipelines()
@@ -166,7 +237,47 @@ void SimpleShadowmapRender::DestroyPipelines()
   m_pFSQuad     = nullptr; // smartptr delete it's resources
 }
 
+void SimpleShadowmapRender::DrawPointSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp)
+{
+  VkShaderStageFlags stageFlags = (VK_SHADER_STAGE_VERTEX_BIT);
 
+  VkBuffer buf             = pointBuf.get();
+  VkDeviceSize zero_offset = 0u;
+  vkCmdBindVertexBuffers(a_cmdBuff, 0, 1, &buf, &zero_offset);
+
+  pushConst2M.model     = float4x4();
+  pushConst2M.pointSize = m_pointSize;
+  pushConst2M.projView  = a_wvp;
+  pushConst2M.instanceCountSqrt = (int)sqrt(m_instanceCount);
+
+  vkCmdPushConstants(a_cmdBuff, m_basicPointPipeline.getVkPipelineLayout(), stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
+
+  vkCmdDraw(a_cmdBuff, pointLodCount[m_lod], m_instanceCount, 0, 0);
+  m_pointCount   = m_instanceCount * pointLodCount[m_lod];
+  m_polygonCount = 0;
+}
+
+void SimpleShadowmapRender::DrawPolySceneCmd(VkCommandBuffer a_cmdBuff, const float4x4 &a_wvp)
+{
+  VkShaderStageFlags stageFlags = (VK_SHADER_STAGE_VERTEX_BIT);
+
+  VkBuffer vbuf = vertexBuf.get();
+  VkBuffer ibuf = indexBuf.get();
+  VkDeviceSize zero_offset = 0u;
+  vkCmdBindVertexBuffers(a_cmdBuff, 0, 1, &vbuf, &zero_offset);
+  vkCmdBindIndexBuffer(a_cmdBuff, ibuf, zero_offset, VK_INDEX_TYPE_UINT32);
+
+  pushConst2M.model             = float4x4();
+  pushConst2M.pointSize         = m_pointSize;
+  pushConst2M.projView          = a_wvp;
+  pushConst2M.instanceCountSqrt = (int)sqrt(m_instanceCount);
+
+  vkCmdPushConstants(a_cmdBuff, m_basicPointPipeline.getVkPipelineLayout(), stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
+
+  vkCmdDrawIndexed(a_cmdBuff, indexLodCount[m_lod], m_instanceCount, 0, 0, 0);
+  m_polygonCount = m_instanceCount * vertexLodCount[m_lod];
+  m_pointCount = 0;
+}
 
 /// COMMAND BUFFER FILLING
 
@@ -179,87 +290,52 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
   VK_CHECK_RESULT(vkBeginCommandBuffer(a_cmdBuff, &beginInfo));
-
-  //// Emit particles
-  //
+  static auto last_lod = m_lod;
+  if (vertexBufferCopy || last_lod != m_lod)
   {
-    VkShaderStageFlags stageFlags = (VK_SHADER_STAGE_COMPUTE_BIT);
-
-    pushConst2Emitter.particlesLifetime = m_particlesLifetime;
-    pushConst2Emitter.particlesMaxCount = m_particlesMaxCount;
-    pushConst2Emitter.particlesSpawnMaxCount = m_particlesSpawnMaxCount;
-    pushConst2Emitter.particlesVelocityScale = m_particlesVelocityScale;
-
-    auto emitterInfo = etna::get_shader_program("emitter");
-
-    auto set = etna::create_descriptor_set(emitterInfo.getDescriptorLayoutId(0), a_cmdBuff,
-    {
-      etna::Binding {0, particles.genBinding()},
-      etna::Binding {1, particlesSpawnCount.genBinding()},
-    });
-
-    VkDescriptorSet vkSet = set.getVkSet();
-
-    vkCmdPushConstants(a_cmdBuff, m_emitterPipeline.getVkPipelineLayout(),
-      stageFlags, 0, sizeof(pushConst2Emitter), &pushConst2Emitter);
-
-    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
-      m_emitterPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
-
-    *static_cast<uint *>(m_particlesSpawnCountMappedMem) = 0;
-
-    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_emitterPipeline.getVkPipeline());
-
-    vkCmdDispatch(a_cmdBuff, m_particlesMaxCount / 32 + 1, 1, 1);
-  }
-
-  //// Update particles
-  //
-  {
-    VkShaderStageFlags stageFlags = (VK_SHADER_STAGE_COMPUTE_BIT);
-
-    pushConst2Compute.particlesMaxCount = m_particlesMaxCount;
-    pushConst2Compute.M = m_M;
-
-    auto computeInfo = etna::get_shader_program("compute");
-
-    auto set = etna::create_descriptor_set(computeInfo.getDescriptorLayoutId(0), a_cmdBuff,
-    {
-      etna::Binding {0, particles.genBinding()},
-    });
-
-    VkDescriptorSet vkSet = set.getVkSet();
-
-    vkCmdPushConstants(a_cmdBuff, m_computePipeline.getVkPipelineLayout(),
-      stageFlags, 0, sizeof(pushConst2Compute), &pushConst2Compute);
-
-    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
-      m_computePipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
-
-    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipeline.getVkPipeline());
-
-    vkCmdDispatch(a_cmdBuff, m_particlesMaxCount / 32 + 1, 1, 1);
+    VkBufferCopy copyVertexRegion {
+      .srcOffset = 0,
+      .dstOffset = 0,
+      .size      = vertexLodCount[m_lod] * sizeof(float3)
+    };
+    VkBufferCopy copyIndexRegion {
+      .srcOffset = 0,
+      .dstOffset = 0,
+      .size      = indexLodCount[m_lod] * sizeof(uint3)
+    };
+    VkBufferCopy copyPointRegion {
+      .srcOffset = 0,
+      .dstOffset = 0,
+      .size      = pointLodCount[m_lod] * sizeof(float3)
+    };
+    vkCmdCopyBuffer(a_cmdBuff, vertexLods[m_lod].get(), vertexBuf.get(), 1, &copyVertexRegion);
+    vkCmdCopyBuffer(a_cmdBuff, indexLods[m_lod].get(), indexBuf.get(), 1, &copyIndexRegion);
+    vkCmdCopyBuffer(a_cmdBuff, pointLods[m_lod].get(), pointBuf.get(), 1, &copyPointRegion);
+    vertexBufferCopy = false;
+    last_lod = m_lod;
   }
 
   //// draw final scene to screen
   //
+  if (m_pointRendering)
   {
-    VkShaderStageFlags stageFlags = (VK_SHADER_STAGE_VERTEX_BIT);
-
-    auto simpleMaterialInfo = etna::get_shader_program("simple_particles");
+    auto simpleMaterialInfo = etna::get_shader_program("simple_points");
 
     etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {{a_targetImage, a_targetImageView}}, mainViewDepth);
 
-    VkBuffer buf = particles.get();
-    VkDeviceSize zero_offset = 0u;
-    vkCmdBindVertexBuffers(a_cmdBuff, 0, 1, &buf, &zero_offset);
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicPointPipeline.getVkPipeline());
 
-    vkCmdPushConstants(a_cmdBuff, m_basicForwardPipeline.getVkPipelineLayout(),
-      stageFlags, 0, sizeof(float), &m_pointSize);
+    DrawPointSceneCmd(a_cmdBuff, m_worldViewProj);
+  }
+  else
+  {
+    auto simpleMaterialInfo = etna::get_shader_program("simple_polygons");
 
-    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicForwardPipeline.getVkPipeline());
+    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {{a_targetImage, a_targetImageView}}, mainViewDepth);
 
-    vkCmdDraw(a_cmdBuff, m_particlesMaxCount, 1, 0, 0);
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicPolygonPipeline.getVkPipeline());
+
+    DrawPolySceneCmd(a_cmdBuff, m_worldViewProj);
   }
 
   etna::set_state(a_cmdBuff, a_targetImage, vk::PipelineStageFlagBits2::eBottomOfPipe,

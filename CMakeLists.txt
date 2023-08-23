@@ -39,7 +39,9 @@ set(VK_UTILS_SRC
 set(SCENE_LOADER_SRC
         ${CMAKE_SOURCE_DIR}/src/loader_utils/pugixml.cpp
         ${CMAKE_SOURCE_DIR}/src/loader_utils/hydraxml.cpp
-        ${CMAKE_SOURCE_DIR}/src/loader_utils/images.cpp)
+        ${CMAKE_SOURCE_DIR}/src/loader_utils/images.cpp
+        ${CMAKE_SOURCE_DIR}/src/loader_utils/ply.cpp
+        ${CMAKE_SOURCE_DIR}/src/loader_utils/ply_reader.cpp)
 
 set(IMGUI_SRC
         ${CMAKE_SOURCE_DIR}/external/imgui/imgui.cpp

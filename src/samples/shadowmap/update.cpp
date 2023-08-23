@@ -22,7 +22,8 @@ void SimpleShadowmapRender::UpdateView()
   auto mWorldViewProj = mProjFix * mProj * mLookAt;
   
   m_worldViewProj = mWorldViewProj;
-  
+  //pushConst2M.proj = mProjFix*mProj;
+  //pushConst2M.view = mLookAt;
   ///// calc light matrix
   //
   if(m_light.usePerspectiveM)
@@ -41,9 +42,7 @@ void SimpleShadowmapRender::UpdateView()
 
 void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
 {
-  static float time = a_time;
-  pushConst2Compute.dt = a_time - time;
-  time = a_time;
+
 }
 
 void SimpleShadowmapRender::ProcessInput(const AppInput &input)

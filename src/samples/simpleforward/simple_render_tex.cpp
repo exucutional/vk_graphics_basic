@@ -28,7 +28,7 @@ void SimpleRenderTexture::LoadScene(const char* path, bool transpose_inst_matric
   for (uint32_t i = 0; i < m_framesInFlight; ++i)
   {
     BuildCommandBufferSimple(m_cmdBuffersDrawMain[i], m_frameBuffers[i],
-      m_swapchain.GetAttachment(i).view, m_basicForwardPipeline.pipeline);
+      m_swapchain.GetAttachment(i).view, m_basicPointPipeline.pipeline);
   }
 }
 
@@ -81,15 +81,15 @@ void SimpleRenderTexture::SetupSimplePipeline()
 
   // if we are recreating pipeline (for example, to reload shaders)
   // we need to cleanup old pipeline
-  if(m_basicForwardPipeline.layout != VK_NULL_HANDLE)
+  if(m_basicPointPipeline.layout != VK_NULL_HANDLE)
   {
-    vkDestroyPipelineLayout(m_device, m_basicForwardPipeline.layout, nullptr);
-    m_basicForwardPipeline.layout = VK_NULL_HANDLE;
+    vkDestroyPipelineLayout(m_device, m_basicPointPipeline.layout, nullptr);
+    m_basicPointPipeline.layout = VK_NULL_HANDLE;
   }
-  if(m_basicForwardPipeline.pipeline != VK_NULL_HANDLE)
+  if(m_basicPointPipeline.pipeline != VK_NULL_HANDLE)
   {
-    vkDestroyPipeline(m_device, m_basicForwardPipeline.pipeline, nullptr);
-    m_basicForwardPipeline.pipeline = VK_NULL_HANDLE;
+    vkDestroyPipeline(m_device, m_basicPointPipeline.pipeline, nullptr);
+    m_basicPointPipeline.pipeline = VK_NULL_HANDLE;
   }
 
   vk_utils::GraphicsPipelineMaker maker;
@@ -100,10 +100,10 @@ void SimpleRenderTexture::SetupSimplePipeline()
 
   maker.LoadShaders(m_device, shader_paths);
 
-  m_basicForwardPipeline.layout = maker.MakeLayout(m_device, {m_dSetLayout}, sizeof(pushConst2M));
+  m_basicPointPipeline.layout = maker.MakeLayout(m_device, {m_dSetLayout}, sizeof(pushConst2M));
   maker.SetDefaultState(m_width, m_height);
 
-  m_basicForwardPipeline.pipeline = maker.MakePipeline(m_device, m_pScnMgr->GetPipelineVertexInputStateCreateInfo(),
+  m_basicPointPipeline.pipeline = maker.MakePipeline(m_device, m_pScnMgr->GetPipelineVertexInputStateCreateInfo(),
     m_screenRenderPass, {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR});
 }
 
@@ -147,7 +147,7 @@ void SimpleRenderTexture::ProcessInput(const AppInput &input)
     for (uint32_t i = 0; i < m_framesInFlight; ++i)
     {
       BuildCommandBufferSimple(m_cmdBuffersDrawMain[i], m_frameBuffers[i],
-        m_swapchain.GetAttachment(i).view, m_basicForwardPipeline.pipeline);
+        m_swapchain.GetAttachment(i).view, m_basicPointPipeline.pipeline);
     }
   }
 

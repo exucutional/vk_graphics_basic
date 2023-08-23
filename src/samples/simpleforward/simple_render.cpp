@@ -140,15 +140,15 @@ void SimpleRender::SetupSimplePipeline()
 
   // if we are recreating pipeline (for example, to reload shaders)
   // we need to cleanup old pipeline
-  if(m_basicForwardPipeline.layout != VK_NULL_HANDLE)
+  if(m_basicPointPipeline.layout != VK_NULL_HANDLE)
   {
-    vkDestroyPipelineLayout(m_device, m_basicForwardPipeline.layout, nullptr);
-    m_basicForwardPipeline.layout = VK_NULL_HANDLE;
+    vkDestroyPipelineLayout(m_device, m_basicPointPipeline.layout, nullptr);
+    m_basicPointPipeline.layout = VK_NULL_HANDLE;
   }
-  if(m_basicForwardPipeline.pipeline != VK_NULL_HANDLE)
+  if(m_basicPointPipeline.pipeline != VK_NULL_HANDLE)
   {
-    vkDestroyPipeline(m_device, m_basicForwardPipeline.pipeline, nullptr);
-    m_basicForwardPipeline.pipeline = VK_NULL_HANDLE;
+    vkDestroyPipeline(m_device, m_basicPointPipeline.pipeline, nullptr);
+    m_basicPointPipeline.pipeline = VK_NULL_HANDLE;
   }
 
   vk_utils::GraphicsPipelineMaker maker;
@@ -159,10 +159,10 @@ void SimpleRender::SetupSimplePipeline()
 
   maker.LoadShaders(m_device, shader_paths);
 
-  m_basicForwardPipeline.layout = maker.MakeLayout(m_device, {m_dSetLayout}, sizeof(pushConst2M));
+  m_basicPointPipeline.layout = maker.MakeLayout(m_device, {m_dSetLayout}, sizeof(pushConst2M));
   maker.SetDefaultState(m_width, m_height);
 
-  m_basicForwardPipeline.pipeline = maker.MakePipeline(m_device, m_pScnMgr->GetPipelineVertexInputStateCreateInfo(),
+  m_basicPointPipeline.pipeline = maker.MakePipeline(m_device, m_pScnMgr->GetPipelineVertexInputStateCreateInfo(),
                                                        m_screenRenderPass, {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR});
 }
 
@@ -231,7 +231,7 @@ void SimpleRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkFramebu
     vkCmdBeginRenderPass(a_cmdBuff, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, a_pipeline);
 
-    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicForwardPipeline.layout, 0, 1,
+    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicPointPipeline.layout, 0, 1,
                             &m_dSet, 0, VK_NULL_HANDLE);
 
     VkShaderStageFlags stageFlags = (VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -248,7 +248,7 @@ void SimpleRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkFramebu
       auto inst = m_pScnMgr->GetInstanceInfo(i);
 
       pushConst2M.model = m_pScnMgr->GetInstanceMatrix(i);
-      vkCmdPushConstants(a_cmdBuff, m_basicForwardPipeline.layout, stageFlags, 0,
+      vkCmdPushConstants(a_cmdBuff, m_basicPointPipeline.layout, stageFlags, 0,
                          sizeof(pushConst2M), &pushConst2M);
 
       auto mesh_info = m_pScnMgr->GetMeshInfo(inst.mesh_id);
@@ -335,7 +335,7 @@ void SimpleRender::RecreateSwapChain()
   for (uint32_t i = 0; i < m_swapchain.GetImageCount(); ++i)
   {
     BuildCommandBufferSimple(m_cmdBuffersDrawMain[i], m_frameBuffers[i],
-                             m_swapchain.GetAttachment(i).view, m_basicForwardPipeline.pipeline);
+                             m_swapchain.GetAttachment(i).view, m_basicPointPipeline.pipeline);
   }
 
   m_pGUIRender->OnSwapchainChanged(m_swapchain);
@@ -355,15 +355,15 @@ void SimpleRender::Cleanup()
     m_surface = VK_NULL_HANDLE;
   }
 
-  if (m_basicForwardPipeline.pipeline != VK_NULL_HANDLE)
+  if (m_basicPointPipeline.pipeline != VK_NULL_HANDLE)
   {
-    vkDestroyPipeline(m_device, m_basicForwardPipeline.pipeline, nullptr);
-    m_basicForwardPipeline.pipeline = VK_NULL_HANDLE;
+    vkDestroyPipeline(m_device, m_basicPointPipeline.pipeline, nullptr);
+    m_basicPointPipeline.pipeline = VK_NULL_HANDLE;
   }
-  if (m_basicForwardPipeline.layout != VK_NULL_HANDLE)
+  if (m_basicPointPipeline.layout != VK_NULL_HANDLE)
   {
-    vkDestroyPipelineLayout(m_device, m_basicForwardPipeline.layout, nullptr);
-    m_basicForwardPipeline.layout = VK_NULL_HANDLE;
+    vkDestroyPipelineLayout(m_device, m_basicPointPipeline.layout, nullptr);
+    m_basicPointPipeline.layout = VK_NULL_HANDLE;
   }
 
   if (m_presentationResources.imageAvailable != VK_NULL_HANDLE)
@@ -436,7 +436,7 @@ void SimpleRender::ProcessInput(const AppInput &input)
     for (uint32_t i = 0; i < m_framesInFlight; ++i)
     {
       BuildCommandBufferSimple(m_cmdBuffersDrawMain[i], m_frameBuffers[i],
-                               m_swapchain.GetAttachment(i).view, m_basicForwardPipeline.pipeline);
+                               m_swapchain.GetAttachment(i).view, m_basicPointPipeline.pipeline);
     }
   }
 
@@ -478,7 +478,7 @@ void SimpleRender::LoadScene(const char* path, bool transpose_inst_matrices)
   for (uint32_t i = 0; i < m_framesInFlight; ++i)
   {
     BuildCommandBufferSimple(m_cmdBuffersDrawMain[i], m_frameBuffers[i],
-                             m_swapchain.GetAttachment(i).view, m_basicForwardPipeline.pipeline);
+                             m_swapchain.GetAttachment(i).view, m_basicPointPipeline.pipeline);
   }
 }
 
@@ -496,7 +496,7 @@ void SimpleRender::DrawFrameSimple()
   VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 
   BuildCommandBufferSimple(currentCmdBuf, m_frameBuffers[imageIdx], m_swapchain.GetAttachment(imageIdx).view,
-                           m_basicForwardPipeline.pipeline);
+                           m_basicPointPipeline.pipeline);
 
   VkSubmitInfo submitInfo = {};
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -600,7 +600,7 @@ void SimpleRender::DrawFrameWithGUI()
   VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 
   BuildCommandBufferSimple(currentCmdBuf, m_frameBuffers[imageIdx], m_swapchain.GetAttachment(imageIdx).view,
-    m_basicForwardPipeline.pipeline);
+    m_basicPointPipeline.pipeline);
 
   ImDrawData* pDrawData = ImGui::GetDrawData();
   auto currentGUICmdBuf = m_pGUIRender->BuildGUIRenderCommand(imageIdx, pDrawData);

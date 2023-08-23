@@ -5,7 +5,7 @@ import pathlib
 if __name__ == '__main__':
     glslang_cmd = "glslangValidator"
 
-    shader_list = ["simple_particles.vert", "simple_particles.frag", "emitter.comp", "compute.comp"]
+    shader_list = ["point.vert", "point.frag"]
 
     for shader in shader_list:
         subprocess.run([glslang_cmd, "-V", shader, "-o", "{}.spv".format(shader)])
